@@ -245,7 +245,7 @@
 {:else if !$isRegistered}
   <WelcomePopup on:registered={handleRegistration} />
 {:else}
-  <main>
+  <main class="app-main">
     {#if currentPlayerProfile}
       <header class="user-header">
         <p><strong>Name:</strong> {currentPlayerProfile.nickname}</p>
@@ -287,10 +287,3 @@
     {/if}
   </main>
 {/if}
-
-<style>
-  main { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; font-family: sans-serif; color: #fff; background-color: #222; padding-top: 10px; }
-  .user-header { color: orange; padding: 0.5rem 1rem; text-align: center; width: 100%; background-color: #333; margin-bottom: 1rem; border-radius: 5px; }
-  .user-header p { margin: 0.3rem 0; font-size: 0.9em; }
-  .user-header p strong { color: #ddd; }
-</style>
