@@ -12,35 +12,26 @@
   }
 </script>
 
-<div class="dashboard">
-  <div class="sidebar left">
+<div class="dashboard-layout">
+  <div class="dashboard-sidebar-left">
     <Leaderboard />
   </div>
-  <div class="center">
+  <div class="dashboard-center">
     <PlayButton on:play={handlePlay} />
+    <div class="global-chat-placeholder">
+      <h4>Global Chat (Coming Soon)</h4>
+      <div class="chat-messages-placeholder">
+        <p><span>Player1:</span> Hello world!</p>
+        <p><span>Player2:</span> Hey there, ready to pong?</p>
+        <p><span>Player3:</span> Waiting for matchmaking...</p>
+      </div>
+      <div class="chat-input-placeholder">
+        Chat disabled - backend not ready
+      </div>
+    </div>
   </div>
-  <div class="sidebar right">
+  <div class="dashboard-sidebar-right">
     <!-- Lobby dispatches join-game events -->
     <Lobby on:join-game={(e) => dispatch("join-game", e.detail)} />
   </div>
 </div>
-
-<style>
-  .dashboard {
-    display: grid;
-    grid-template-columns: 1fr 2fr 1fr;
-    height: 100vh;
-    background: #222;
-  }
-  .sidebar {
-    background: #333;
-    color: #fff;
-    padding: 1rem;
-    overflow-y: auto;
-  }
-  .center {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-</style>
