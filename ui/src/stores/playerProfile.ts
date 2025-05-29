@@ -4,7 +4,6 @@ import type { AgentPubKey } from "@holochain/client"; // Import AgentPubKey type
 
 export interface PlayerProfile {
   nickname: string;
-  // FIX: Store the actual AgentPubKey object/Uint8Array
   agentKey: AgentPubKey;
 }
 

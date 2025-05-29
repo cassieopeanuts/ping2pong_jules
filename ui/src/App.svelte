@@ -17,6 +17,10 @@
   import type { GameInvitationSignal, GameStartedSignal, GlobalChatMessageSignal } from "./ping_2_pong/ping_2_pong/types"; // Adjust path if necessary
   // Import chat store function
   import { addChatMessage } from "./stores/chatStore"; // Adjust path if necessary
+  // Import utility functions
+  import { truncatePubkey } from "./utils";
+  // Import Holochain constants
+  import { HOLOCHAIN_ROLE_NAME, HOLOCHAIN_ZOME_NAME } from "./holochainConfig";
 
   // Import Components
   import WelcomePopup from "./ping_2_pong/WelcomePopup.svelte";
@@ -31,38 +35,32 @@
 
   // Component State
   let client: AppClient;
-  let error: HolochainError | undefined;
-  let loading = true;
+  let error: HolochainError | undefined; // For critical/global errors
+  let loading = true; // Global loading state
   let presenceIntervalId: ReturnType<typeof setInterval> | undefined;
   let unsubscribeFromSignals: UnsubscribeFunction | undefined; // Use the locally defined type
+  let invitationError: string | null = null; // Specific for invitation errors
 
   // Holochain Client Setup
   const appClientContext = {
     getClient: async (): Promise<AppClient> => {
       if (!client) {
-        console.log("Connecting to Holochain...");
+        // console.log("Connecting to Holochain...");
         try {
           client = await AppWebsocket.connect({ url: new URL("ws://localhost:8888") });
-          console.log("Holochain client connected.");
+          // console.log("Holochain client connected.");
         } catch (e) { console.error("AppWebsocket.connect error:", e); error = e as HolochainError; throw e; }
       }
       return client;
     }
   };
 
-  // --- Helper Function ---
-  function truncatePubkey(pubkey: AgentPubKey | null | undefined): string {
-    if (!pubkey) return "N/A";
-    try { const base64 = encodeHashToBase64(pubkey); return base64.slice(0, 8) + "..." + base64.slice(-6); }
-    catch (e) { console.error("Error encoding pubkey in truncatePubkey:", e, pubkey); return "Error"; }
-  }
-
   // --- Presence Publishing ---
   async function publishPresence() {
       const regStatus = get(isRegistered);
       if (!client || !regStatus) return;
       try {
-          await client.callZome({ cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong", fn_name: "publish_presence", payload: null, });
+          await client.callZome({ cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME, fn_name: "publish_presence", payload: null, });
       } catch(e) {
           if ((e as HolochainError).message.includes("source chain head has moved")) {
               console.warn("Presence publishing skipped due to source chain conflict (likely harmless).");
@@ -75,39 +73,39 @@
 
   // --- Signal Handler ---
   function handleSignal(signalPayload: any) {
-      console.log("[App.svelte handleSignal] Received signal RAW:", JSON.stringify(signalPayload, null, 2));
+      // console.log("[App.svelte handleSignal] Received signal RAW:", JSON.stringify(signalPayload, null, 2)); // Too verbose
 
       if (signalPayload && typeof signalPayload === 'object' && signalPayload.App) {
           const appSignalWrapper = signalPayload.App;
-          console.log("[App.svelte handleSignal] Processing App signal wrapper:", appSignalWrapper);
+          // console.log("[App.svelte handleSignal] Processing App signal wrapper:", appSignalWrapper); // Verbose
 
           const actualSignal = appSignalWrapper.payload;
 
           if (!actualSignal?.type) {
-              console.log("[App.svelte handleSignal] App signal payload ignored (missing type).", actualSignal);
+              // console.log("[App.svelte handleSignal] App signal payload ignored (missing type).", actualSignal); // Can be noisy
               return;
           }
 
-          console.log(`[App.svelte handleSignal] Detected signal type: ${actualSignal.type}`);
+          // console.log(`[App.svelte handleSignal] Detected signal type: ${actualSignal.type}`); // Info
 
           // Handle GameInvitation signals
           if (actualSignal.type === "GameInvitation") {
-              console.log("[App.svelte handleSignal] Processing GameInvitation...");
+              // console.log("[App.svelte handleSignal] Processing GameInvitation...");
               const invitation = actualSignal as GameInvitationSignal;
               if (invitation.game_id && invitation.inviter && invitation.message) {
                   if (encodeHashToBase64(invitation.inviter) !== encodeHashToBase64(client.myPubKey)) {
-                      console.log("[App.svelte handleSignal] Adding invitation to store:", invitation);
+                      // console.log("[App.svelte handleSignal] Adding invitation to store:", invitation); // Info
                       addInvitation(invitation);
-                      console.log("[App.svelte handleSignal] Invitations store state:", get(invitations));
+                      // console.log("[App.svelte handleSignal] Invitations store state:", get(invitations)); // Debug
                   } else {
-                      console.log("[App.svelte handleSignal] Ignoring self-sent GameInvitation signal.");
+                      // console.log("[App.svelte handleSignal] Ignoring self-sent GameInvitation signal."); // Info
                   }
               } else {
                   console.warn("[App.svelte handleSignal] Malformed GameInvitation signal received:", invitation);
               }
           // Handle GameStarted signals
           } else if (actualSignal.type === "GameStarted") {
-              console.log("[App.svelte handleSignal] Processing GameStarted...");
+              // console.log("[App.svelte handleSignal] Processing GameStarted...");
               const { game_id, player_1, player_2 } = actualSignal as GameStartedSignal;
 
               if (game_id && player_1 && player_2) {
@@ -115,38 +113,34 @@
                    const p1B64 = encodeHashToBase64(player_1);
                    const p2B64 = encodeHashToBase64(player_2);
 
-                   // *** ADDED DETAILED LOGS ***
-                   console.log(`[App.svelte handleSignal GameStarted] MyKey: ${myPubKeyB64}, P1: ${p1B64}, P2: ${p2B64}`);
+                   // console.log(`[App.svelte handleSignal GameStarted] MyKey: ${myPubKeyB64}, P1: ${p1B64}, P2: ${p2B64}`); // Debug
 
                    // Check if I am one of the players in the started game
                    if (myPubKeyB64 === p1B64 || myPubKeyB64 === p2B64) {
-                       console.log(`[App.svelte handleSignal GameStarted] Match found! I am involved.`);
-                       console.log(`[App.svelte handleSignal GameStarted] Setting currentGame to: ${encodeHashToBase64(game_id)}`);
+                       // console.log(`[App.svelte handleSignal GameStarted] Match found! I am involved.`);
+                       // console.log(`[App.svelte handleSignal GameStarted] Setting currentGame to: ${encodeHashToBase64(game_id)}`);
                        currentGame.set(game_id);
-                       console.log(`[App.svelte handleSignal GameStarted] Setting currentRoute to: gameplay`);
+                       // console.log(`[App.svelte handleSignal GameStarted] Setting currentRoute to: gameplay`);
                        currentRoute.set("gameplay");
-                       console.log(`[App.svelte handleSignal GameStarted] Clearing invitations.`);
+                       // console.log(`[App.svelte handleSignal GameStarted] Clearing invitations.`);
                        invitations.set([]);
-                       console.log(`[App.svelte handleSignal GameStarted] Navigation logic complete.`);
+                       // console.log(`[App.svelte handleSignal GameStarted] Navigation logic complete.`);
                    } else {
-                       console.log(`[App.svelte handleSignal GameStarted] Ignoring signal for game ${encodeHashToBase64(game_id)} as I am not a participant.`);
+                       // console.log(`[App.svelte handleSignal GameStarted] Ignoring signal for game ${encodeHashToBase64(game_id)} as I am not a participant.`); // Info
                    }
               } else {
                    console.warn("[App.svelte handleSignal GameStarted] Signal missing required fields (game_id, player_1, player_2)", actualSignal);
               }
           // Handle standard signals
           } else if (actualSignal.type === "EntryCreated") {
-              console.log("[App.svelte handleSignal] Received EntryCreated signal (standard).");
+              // console.log("[App.svelte handleSignal] Received EntryCreated signal (standard)."); // Info
           } else if (actualSignal.type === "LinkCreated") {
-              console.log("[App.svelte handleSignal] Received LinkCreated signal (standard).");
+              // console.log("[App.svelte handleSignal] Received LinkCreated signal (standard)."); // Info
           }
           // MODIFIED: Added GlobalChatMessage handler
           else if (actualSignal.type === "GlobalChatMessage") {
-            console.log("[App.svelte handleSignal] Processing GlobalChatMessage...");
-            // The actualSignal.payload from the DNA is ChatMessagePayload { timestamp: Timestamp, sender: AgentPubKey, content: String }
-            // The Holochain client's AppWebsocket automatically converts AgentPubKey to AgentPubKeyB64 string for signals.
-            // Timestamp from DNA is [number (seconds), number (nanoseconds)]
-            const rawSignal = actualSignal as any; // Use 'any' to access potentially unconverted fields like rawSignal.timestamp
+            // console.log("[App.svelte handleSignal] Processing GlobalChatMessage...");
+            const rawSignal = actualSignal as any;
 
             if (rawSignal.sender && typeof rawSignal.content === 'string' && 
                 Array.isArray(rawSignal.timestamp) && rawSignal.timestamp.length === 2 &&
@@ -155,22 +149,22 @@
                 const messageTimestamp = rawSignal.timestamp[0] * 1000 + Math.floor(rawSignal.timestamp[1] / 1000000);
                 
                 const chatSignal: GlobalChatMessageSignal = {
-                    type: "GlobalChatMessage", // This is the type string
-                    sender: rawSignal.sender,    // Already AgentPubKeyB64 string
+                    type: "GlobalChatMessage",
+                    sender: rawSignal.sender,
                     content: rawSignal.content,
-                    timestamp: messageTimestamp, // Converted to milliseconds
+                    timestamp: messageTimestamp,
                 };
                 addChatMessage(chatSignal);
-                console.log("[App.svelte handleSignal] Added chat message to store:", chatSignal);
+                // console.log("[App.svelte handleSignal] Added chat message to store:", chatSignal); // Info
             } else {
                 console.warn("[App.svelte handleSignal] Malformed GlobalChatMessage signal received or sender/timestamp issue:", rawSignal);
             }
           }
           else {
-              console.log(`[App.svelte handleSignal] Received unhandled signal type in payload: ${actualSignal.type}`);
+              console.warn(`[App.svelte handleSignal] Received unhandled signal type in payload: ${actualSignal.type}`, actualSignal);
           }
       } else {
-          console.log("[App.svelte handleSignal] Received signal ignored (not App signal structure):", signalPayload);
+          // console.log("[App.svelte handleSignal] Received signal ignored (not App signal structure):", signalPayload); // Can be noisy
       }
   }
 
@@ -179,11 +173,13 @@
   function handleJoinGame(event: CustomEvent<{ gameHash: ActionHash }>) {
     // This event is dispatched by Lobby/Popup after *calling* join_game.
     // Navigation now relies solely on receiving the GameStarted signal.
-    console.log("[App.svelte handleJoinGame] Event received, waiting for GameStarted signal.", event.detail);
+    // console.log("[App.svelte handleJoinGame] Event received, waiting for GameStarted signal.", event.detail); // Info
     invitations.set([]); // Still clear invitations if one was accepted
   }
 
-  function handleRegistration() { console.log('Player registered!'); }
+  function handleRegistration() { 
+    // console.log('Player registered!'); // Info
+  }
 
   // --- Popup Action Handlers ---
   async function handleAcceptInvitation(
@@ -194,39 +190,39 @@
         ? decodeHashFromBase64(event.detail.gameId)
         : event.detail.gameId;
 
-    console.log("[App] Accepting invitation for", encodeHashToBase64(gameHash));
+    // console.log("[App] Accepting invitation for", encodeHashToBase64(gameHash)); // Info
 
     removeInvitation(gameHash);     // optimistic removal
-    loading = true;
+    loading = true; // Use global loading for now, can refine later
+    invitationError = null; // Clear previous error
 
     try {
       await client.callZome({
         cap_secret: null,
-        role_name : "ping_2_pong",
-        zome_name : "ping_2_pong",
+        role_name : HOLOCHAIN_ROLE_NAME,
+        zome_name : HOLOCHAIN_ZOME_NAME,
         fn_name   : "accept_invitation",   /* ← new zome call */
         payload   : { game_id: gameHash }
       });
 
-      /* Navigation now waits for the `GameStarted` signal */
-      console.log("[App] accept_invitation sent – waiting for GameStarted…");
-    } catch (e) {
+      // console.log("[App] accept_invitation sent – waiting for GameStarted…"); // Info
+    } catch (e: any) {
       console.error("accept_invitation error:", e);
-      error = e as HolochainError;
+      invitationError = e.data?.data || e.message || "Failed to accept invitation.";
     } finally {
       loading = false;
     }
   }
 
   function handleDeclineInvitation(gameIdToDecline: ActionHash) {
-      console.log("[App.svelte handleDeclineInvitation] Declining invitation for game:", encodeHashToBase64(gameIdToDecline));
+      // console.log("[App.svelte handleDeclineInvitation] Declining invitation for game:", encodeHashToBase64(gameIdToDecline)); // Info
       removeInvitation(gameIdToDecline);
+      invitationError = null; // Clear error if an invitation is declined
   }
 
   // --- Exit Game Handler ---
   function exitGame() {
-      console.log("[App.svelte exitGame] Exiting game...");
-      // TODO: Optionally call backend to update game status (e.g., cancel/finish)
+      // console.log("[App.svelte exitGame] Exiting game..."); // Info
       currentGame.set(null);
       currentRoute.set("dashboard");
       invitations.set([]);
@@ -240,7 +236,7 @@
       client = await appClientContext.getClient();
       if (client) {
           unsubscribeFromSignals = client.on("signal", handleSignal);
-          console.log("App.svelte signal listener attached.");
+          // console.log("App.svelte signal listener attached."); // Info
       }
       presenceIntervalId = setInterval(publishPresence, 15000);
     } catch (e) { console.error("Failed to initialize Holochain client:", e); error = e as HolochainError;}
@@ -248,9 +244,9 @@
   });
 
   onDestroy(() => {
-      if (unsubscribeFromSignals) { unsubscribeFromSignals(); console.log("App.svelte signal listener detached."); }
+      if (unsubscribeFromSignals) { unsubscribeFromSignals(); /* console.log("App.svelte signal listener detached."); */ } // Info
       if (presenceIntervalId) { clearInterval(presenceIntervalId); }
-      console.log("App destroyed");
+      // console.log("App destroyed"); // Info
   });
 
   // Provide client context
@@ -265,7 +261,15 @@
   // Derive state for the current invitation popup
   let currentInvitationToShow: GameInvitationSignal | null = null;
   invitations.subscribe(invList => {
-      currentInvitationToShow = invList.length > 0 ? invList[0] : null;
+      if (invList.length > 0) {
+        if (!currentInvitationToShow || encodeHashToBase64(currentInvitationToShow.game_id) !== encodeHashToBase64(invList[0].game_id)) {
+          invitationError = null; // Clear error when a new invitation appears
+        }
+        currentInvitationToShow = invList[0];
+      } else {
+        currentInvitationToShow = null;
+        invitationError = null; // Clear error if no invitations are present
+      }
   });
 
 </script>
@@ -294,6 +298,7 @@
        <InvitationPopup
          inviter={inviterName}
          gameId={gameIdString}
+         error={invitationError}
          on:accept={(e) => handleAcceptInvitation(e)}
          on:decline={() => handleDeclineInvitation(gameIdObject)}
        />

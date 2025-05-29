@@ -7,6 +7,7 @@
   import { clientContext, type ClientContext } from "../../contexts";
   import type { PlayerStatus, Game } from "../ping_2_pong/types"; // Removed GameInvitationSignal
   import { decode } from "@msgpack/msgpack";
+  import { HOLOCHAIN_ROLE_NAME, HOLOCHAIN_ZOME_NAME } from "../../holochainConfig";
 
   const dispatch = createEventDispatcher();
   let client: AppClient;
@@ -50,8 +51,8 @@
     // 1. fetch every game ever created
     const allGames: Record[] = await client.callZome({
       cap_secret: null,
-      role_name: "ping_2_pong",
-      zome_name: "ping_2_pong",
+      role_name: HOLOCHAIN_ROLE_NAME,
+      zome_name: HOLOCHAIN_ZOME_NAME,
       fn_name: "get_all_games",
       payload: null
     });
@@ -65,8 +66,8 @@
     for (const original of allGames) {
       const latest: Record = await client.callZome({
         cap_secret: null,
-        role_name: "ping_2_pong",
-        zome_name: "ping_2_pong",
+        role_name: HOLOCHAIN_ROLE_NAME,
+        zome_name: HOLOCHAIN_ZOME_NAME,
         fn_name: "get_latest_game",
         payload: original.signed_action.hashed.hash           // original hash
       });
@@ -95,8 +96,8 @@
       // ---- JOIN a game someone else created ----
       await client.callZome({
         cap_secret: null,
-        role_name: "ping_2_pong",
-        zome_name: "ping_2_pong",
+        role_name: HOLOCHAIN_ROLE_NAME,
+        zome_name: HOLOCHAIN_ZOME_NAME,
         fn_name: "join_game",
         payload: joinableGame.signed_action.hashed.hash
       });
@@ -108,8 +109,8 @@
       // ---- CREATE a brand-new game ----
       const record: Record = await client.callZome({
         cap_secret: null,
-        role_name: "ping_2_pong",
-        zome_name: "ping_2_pong",
+        role_name: HOLOCHAIN_ROLE_NAME,
+        zome_name: HOLOCHAIN_ZOME_NAME,
         fn_name: "create_game",
         payload: { player_1: client.myPubKey, player_2: null }
       });
@@ -147,8 +148,8 @@ async function sendInvitation(invitee: AgentPubKey) {
 
     const gameRecord: Record = await client.callZome({
       cap_secret : null,
-      role_name  : "ping_2_pong",
-      zome_name  : "ping_2_pong",
+      role_name  : HOLOCHAIN_ROLE_NAME,
+      zome_name  : HOLOCHAIN_ZOME_NAME,
       fn_name    : "create_game",
       payload    : createPayload
     });
@@ -167,8 +168,8 @@ async function sendInvitation(invitee: AgentPubKey) {
     console.log("Sending invitation...");
     await client.callZome({
       cap_secret : null,
-      role_name  : "ping_2_pong",
-      zome_name  : "ping_2_pong",
+      role_name  : HOLOCHAIN_ROLE_NAME,
+      zome_name  : HOLOCHAIN_ZOME_NAME,
       fn_name    : "send_invitation",          // the extern you just added
       payload    : invitationPayload
     });
@@ -192,7 +193,7 @@ async function sendInvitation(invitee: AgentPubKey) {
     fetchingUsers = true; fetchError = null;
     try {
       const fetchedPubKeys: AgentPubKey[] = await client.callZome({
-          cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong",
+          cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
           fn_name: "get_online_users", payload: null
         });
 
@@ -204,7 +205,7 @@ async function sendInvitation(invitee: AgentPubKey) {
             const user = onlineUsers[i];
             try {
                   const statusResult = await client.callZome({
-                      cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong",
+                      cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
                       fn_name: "get_player_status", payload: user.pubKey
                   });
                   // Assign the result (should be 'Available' or 'InGame')
