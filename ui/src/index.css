@@ -263,6 +263,7 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 1rem; /* Space between title, messages, and input placeholder */
+  height: 350px; /* Adjusted fixed height for the chat component */
 }
 
 .global-chat-placeholder h4 {
@@ -277,9 +278,11 @@ select:focus {
   background-color: var(--primary-bg-color); /* Black background */
   padding: 1rem;
   border-radius: 6px; /* Slightly smaller radius than container */
-  height: 150px; /* Fixed height for message area */
+  /* height: 150px; REMOVED Fixed height */
+  flex-grow: 1; /* Allow message area to fill available vertical space */
   overflow-y: auto; /* Allow scrolling for messages if they overflow */
   border: 1px solid var(--border-color); /* Subtle border */
+  min-height: 100px; /* Ensure it doesn't collapse too much if parent is small, though parent has fixed height now */
 }
 
 .chat-messages-placeholder p {
@@ -291,6 +294,12 @@ select:focus {
 .chat-messages-placeholder p span { /* For player names */
   color: var(--primary-text-color); /* Orange for player names */
   font-weight: 500;
+}
+
+.chat-messages-placeholder .chat-timestamp {
+  font-size: 0.8em;
+  color: var(--accent-color);
+  margin-left: 8px;
 }
 
 .chat-input-placeholder {
