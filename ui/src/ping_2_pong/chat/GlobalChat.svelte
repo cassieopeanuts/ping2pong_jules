@@ -6,10 +6,15 @@
   // GlobalChatMessageSignal is implicitly used by $globalChatMessages store, explicit import not strictly needed here for that
   // but good for clarity if we were to type a variable with it.
   // import type { GlobalChatMessageSignal } from '../ping_2_pong/types'; // Adjust path if necessary, seems correct
+  import { truncatePubkey } from '../../utils'; // Import the new truncatePubkey
+  import { HOLOCHAIN_ROLE_NAME, HOLOCHAIN_ZOME_NAME } from '../../holochainConfig';
 
   let messageContent: string = "";
   let chatBox: HTMLElement; // For auto-scrolling
   let unsubscribeFromStore: (() => void) | undefined;
+
+  let sendError: string | null = null;
+  let isSending: boolean = false;
 
   // Correctly get the Svelte context value
   const appClientContextValue = getContext(clientContext);
@@ -31,21 +36,29 @@
 
   async function sendMessage() {
     if (!messageContent.trim()) return;
-    
+    isSending = true;
+    sendError = null;
     try {
       const client = await getClient(); // Ensure client is resolved
       await client.callZome({
         cap_secret: null,
-        role_name: "ping_2_pong", // Ensure this matches your DNA role_name
-        zome_name: "ping_2_pong", // Ensure this matches your Zome name
+        role_name: HOLOCHAIN_ROLE_NAME,
+        zome_name: HOLOCHAIN_ZOME_NAME,
         fn_name: "send_global_chat_message",
         payload: messageContent,
       });
-      messageContent = "";
-    } catch (e) {
+      messageContent = ""; // Clear message content on success
+    } catch (e: any) {
       console.error("Error sending chat message:", e);
-      alert("Failed to send message. See console for details."); // User feedback
+      sendError = e.data?.data || e.message || "Failed to send message. Please try again.";
+    } finally {
+      isSending = false;
     }
+  }
+
+  // Clear error when user starts typing
+  $: if (messageContent && sendError) {
+    sendError = null;
   }
 
   function formatTimestamp(timestamp: number): string {
@@ -81,16 +94,16 @@
     }
   });
 
-  // Helper to truncate sender pubkey for display
-  function truncatePubkey(pubkey: string): string {
-    if (!pubkey || typeof pubkey !== 'string') return "anonymous"; // Handle undefined or non-string pubkeys
-    // Assuming pubkey is Base64. A typical Holochain AgentPubKey (uCA...) is longer.
-    // Adjust slicing if needed based on actual pubkey format and length.
-    const prefixLength = 8;
-    const suffixLength = 6;
-    if (pubkey.length <= prefixLength + suffixLength + 3) return pubkey; // Don't truncate if too short
-    return pubkey.slice(0, prefixLength) + "..." + pubkey.slice(-suffixLength);
-  }
+  // Helper to truncate sender pubkey for display - REMOVED, using imported version
+  // function truncatePubkey(pubkey: string): string {
+  //   if (!pubkey || typeof pubkey !== 'string') return "anonymous"; // Handle undefined or non-string pubkeys
+  //   // Assuming pubkey is Base64. A typical Holochain AgentPubKey (uCA...) is longer.
+  //   // Adjust slicing if needed based on actual pubkey format and length.
+  //   const prefixLength = 8;
+  //   const suffixLength = 6;
+  //   if (pubkey.length <= prefixLength + suffixLength + 3) return pubkey; // Don't truncate if too short
+  //   return pubkey.slice(0, prefixLength) + "..." + pubkey.slice(-suffixLength);
+  // }
 
 </script>
 
@@ -113,10 +126,17 @@
     {/each}
   </div>
    <!-- Form styled to lay out input and button horizontally, using global styles for elements -->
-   <form on:submit|preventDefault={sendMessage} style="display: flex; gap: 8px; margin-top: 1rem; align-items: center;">
-     <input type="text" bind:value={messageContent} placeholder="Type a message..." aria-label="Chat message input" style="flex-grow: 1; margin: 0;" /> {/* margin: 0 to override global input's default bottom margin */}
-    <button type="submit">Send</button>
-  </form>
+   <form on:submit|preventDefault={sendMessage} style="display: flex; flex-direction: column; gap: 8px; margin-top: 1rem;">
+     <div style="display: flex; gap: 8px; align-items: center;">
+       <input type="text" bind:value={messageContent} placeholder="Type a message..." aria-label="Chat message input" style="flex-grow: 1; margin: 0;" disabled={isSending} />
+       <button type="submit" disabled={isSending}>
+         {#if isSending}Sending...{:else}Send{/if}
+       </button>
+     </div>
+     {#if sendError}
+       <p class="error-message" style="margin: 0.5rem 0 0 0; padding: 0.5em;">{sendError}</p>
+     {/if}
+   </form>
 </div>
 
 <!-- The <style> block has been removed entirely. -->

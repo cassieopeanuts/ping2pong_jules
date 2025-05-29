@@ -302,16 +302,7 @@ select:focus {
   margin-left: 8px;
 }
 
-.chat-input-placeholder {
-  padding: 0.75rem 1rem;
-  background-color: var(--input-bg-color);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  text-align: center;
-  color: #aaa; /* Greyish text */
-  font-style: italic;
-  font-size: 0.9em;
-}
+/* Removed .chat-input-placeholder as it was for the static placeholder only */
 
 /* StatisticsDashboard.svelte specific styles */
 .statistics-dashboard {
