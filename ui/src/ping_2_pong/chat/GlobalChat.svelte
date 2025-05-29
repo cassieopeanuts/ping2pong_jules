@@ -94,121 +94,29 @@
 
 </script>
 
-<div class="chat-container">
-  <div class="chat-messages" bind:this={chatBox}>
+<div class="global-chat-placeholder">
+  <h4>Global Chat</h4>
+  <div class="chat-messages-placeholder" bind:this={chatBox}>
     {#each $globalChatMessages as msg (msg.timestamp.toString() + msg.sender)}
-      <div class="message">
-        <span class="sender" title={msg.sender}>{truncatePubkey(msg.sender)}:</span>
-        <span class="content">{msg.content}</span>
-        <span class="timestamp">{formatTimestamp(msg.timestamp)}</span>
-      </div>
+      <p>
+        <!-- The 'span' for sender will be styled by '.chat-messages-placeholder p span' from index.css -->
+        <span title={msg.sender}>{truncatePubkey(msg.sender)}:</span>
+        <!-- Message content will be styled by '.chat-messages-placeholder p' -->
+        {msg.content}
+        <span class="chat-timestamp">{formatTimestamp(msg.timestamp)}</span>
+      </p>
     {:else}
-      <p class="no-messages">No messages yet. Be the first to say something!</p>
+      <!-- This paragraph will inherit styles from '.chat-messages-placeholder p' and can be centered with a utility class if needed -->
+      <p class="text-center"> 
+        No messages yet. Be the first to say something!
+      </p>
     {/each}
   </div>
-  <form class="chat-input" on:submit|preventDefault={sendMessage}>
-    <input type="text" bind:value={messageContent} placeholder="Type a message..." aria-label="Chat message input" />
+   <!-- Form styled to lay out input and button horizontally, using global styles for elements -->
+   <form on:submit|preventDefault={sendMessage} style="display: flex; gap: 8px; margin-top: 1rem; align-items: center;">
+     <input type="text" bind:value={messageContent} placeholder="Type a message..." aria-label="Chat message input" style="flex-grow: 1; margin: 0;" /> {/* margin: 0 to override global input's default bottom margin */}
     <button type="submit">Send</button>
   </form>
 </div>
 
-<style>
-  .chat-container {
-    display: flex;
-    flex-direction: column;
-    height: 300px; /* Example height, adjust as needed */
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    overflow: hidden;
-    font-family: Arial, sans-serif; /* Common sans-serif font */
-    width: 100%; 
-    max-width: 500px; /* Max width for larger screens */
-    margin: 10px auto; /* Center component if it has max-width */
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-  }
-
-  .chat-messages {
-    flex-grow: 1;
-    overflow-y: auto;
-    padding: 10px;
-    background-color: #f9f9f9;
-    display: flex;
-    flex-direction: column; 
-  }
-
-  .message {
-    margin-bottom: 8px;
-    padding: 6px 10px;
-    border-radius: 15px; /* More rounded bubbles */
-    background-color: #e0e0e0; /* Light grey for messages */
-    color: #333;
-    word-wrap: break-word; 
-    max-width: 80%; /* Messages don't take full width */
-    align-self: flex-start; /* Align to left by default */
-  }
-
-  /* Example: differentiate sender's own messages (if myPubKey is available) */
-  /* .message.own {
-    background-color: #007bff; 
-    color: white;
-    align-self: flex-end;
-  } */
-
-  .message .sender {
-    font-weight: bold;
-    margin-right: 8px; /* Increased spacing */
-    color: #0056b3; /* Darker blue for sender */
-  }
-  .message .content {
-     color: #111;
-  }
-
-  .message .timestamp {
-    font-size: 0.7em; /* Slightly smaller timestamp */
-    color: #666; /* Lighter grey for timestamp */
-    margin-left: 10px;
-    display: inline-block; /* Keep on same line if space allows */
-    margin-top: 2px;
-  }
-  
-  .no-messages {
-    color: #888;
-    text-align: center;
-    margin-top: 20px;
-    flex-grow: 1; /* Center vertically if no messages */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .chat-input {
-    display: flex;
-    padding: 10px;
-    border-top: 1px solid #ccc;
-    background-color: #f0f0f0; /* Slightly different background for input area */
-  }
-
-  .chat-input input {
-    flex-grow: 1;
-    padding: 10px; /* More padding */
-    border: 1px solid #ddd;
-    border-radius: 20px; /* Rounded input */
-    margin-right: 10px;
-    font-size: 0.9em;
-  }
-
-  .chat-input button {
-    padding: 10px 18px; /* More padding */
-    border: none;
-    background-color: #007bff;
-    color: white;
-    border-radius: 20px; /* Rounded button */
-    cursor: pointer;
-    font-size: 0.9em;
-    transition: background-color 0.2s ease;
-  }
-
-  .chat-input button:hover {
-    background-color: #0056b3;
-  }
-</style>
+<!-- The <style> block has been removed entirely. -->
