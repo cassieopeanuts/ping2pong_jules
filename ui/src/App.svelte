@@ -287,7 +287,7 @@
       </header>
     {/if}
 
-    {* <!-- ADDED GlobalChat component --> *}
+    <!-- ADDED GlobalChat component -->
     <GlobalChat />
 
     {#if currentInvitationToShow}
