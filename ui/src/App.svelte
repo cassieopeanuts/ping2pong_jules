@@ -13,10 +13,14 @@
   // Import invitation store and helpers
   import { invitations, addInvitation, removeInvitation } from "./stores/invitationStore";
   // Import the specific signal type
-  import type { GameInvitationSignal, GameStartedSignal } from "./ping_2_pong/ping_2_pong/types"; // Adjust path if necessary
+  // MODIFIED: Added GlobalChatMessageSignal
+  import type { GameInvitationSignal, GameStartedSignal, GlobalChatMessageSignal } from "./ping_2_pong/ping_2_pong/types"; // Adjust path if necessary
+  // Import chat store function
+  import { addChatMessage } from "./stores/chatStore"; // Adjust path if necessary
 
   // Import Components
   import WelcomePopup from "./ping_2_pong/WelcomePopup.svelte";
+  import GlobalChat from "./ping_2_pong/chat/GlobalChat.svelte"; // Adjust path if necessary
   import Dashboard from "./ping_2_pong/game/Dashboard.svelte";
   import PongGame from "./ping_2_pong/game/PongGame.svelte";
   import StatisticsDashboard from "./ping_2_pong/game/StatisticsDashboard.svelte";
@@ -136,6 +140,32 @@
           } else if (actualSignal.type === "LinkCreated") {
               console.log("[App.svelte handleSignal] Received LinkCreated signal (standard).");
           }
+          // MODIFIED: Added GlobalChatMessage handler
+          else if (actualSignal.type === "GlobalChatMessage") {
+            console.log("[App.svelte handleSignal] Processing GlobalChatMessage...");
+            // The actualSignal.payload from the DNA is ChatMessagePayload { timestamp: Timestamp, sender: AgentPubKey, content: String }
+            // The Holochain client's AppWebsocket automatically converts AgentPubKey to AgentPubKeyB64 string for signals.
+            // Timestamp from DNA is [number (seconds), number (nanoseconds)]
+            const rawSignal = actualSignal as any; // Use 'any' to access potentially unconverted fields like rawSignal.timestamp
+
+            if (rawSignal.sender && typeof rawSignal.content === 'string' && 
+                Array.isArray(rawSignal.timestamp) && rawSignal.timestamp.length === 2 &&
+                typeof rawSignal.timestamp[0] === 'number' && typeof rawSignal.timestamp[1] === 'number') {
+                
+                const messageTimestamp = rawSignal.timestamp[0] * 1000 + Math.floor(rawSignal.timestamp[1] / 1000000);
+                
+                const chatSignal: GlobalChatMessageSignal = {
+                    type: "GlobalChatMessage", // This is the type string
+                    sender: rawSignal.sender,    // Already AgentPubKeyB64 string
+                    content: rawSignal.content,
+                    timestamp: messageTimestamp, // Converted to milliseconds
+                };
+                addChatMessage(chatSignal);
+                console.log("[App.svelte handleSignal] Added chat message to store:", chatSignal);
+            } else {
+                console.warn("[App.svelte handleSignal] Malformed GlobalChatMessage signal received or sender/timestamp issue:", rawSignal);
+            }
+          }
           else {
               console.log(`[App.svelte handleSignal] Received unhandled signal type in payload: ${actualSignal.type}`);
           }
@@ -252,6 +282,9 @@
         <p><strong>Agent Key:</strong> {truncatePubkey(currentPlayerProfile.agentKey)}</p>
       </header>
     {/if}
+
+    {* <!-- ADDED GlobalChat component --> *}
+    <GlobalChat />
 
     {#if currentInvitationToShow}
        {@const inviterName = truncatePubkey(currentInvitationToShow.inviter)}
