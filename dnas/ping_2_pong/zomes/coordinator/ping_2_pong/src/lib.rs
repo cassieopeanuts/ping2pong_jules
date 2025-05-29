@@ -1,6 +1,7 @@
 // ping_2_pong/dnas/ping_2_pong/zomes/coordinator/ping_2_pong/src/lib.rs
 
 // Declare modules
+pub mod chat;
 pub mod game;
 pub mod player;
 pub mod score;
@@ -12,6 +13,9 @@ pub mod invitations;
 use hdk::prelude::*;
 // Use integrity crate types (EntryTypes, LinkTypes)
 use ping_2_pong_integrity::*;
+
+// Import Timestamp and AgentPubKey for ChatMessagePayload
+use hdk::prelude::{Timestamp, AgentPubKey};
 
 
 /// ---------- 1. grant the capability on startup ----------
@@ -33,8 +37,16 @@ fn init(_: ()) -> ExternResult<InitCallbackResult> {
 }
 
 
+// ChatMessagePayload struct definition
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ChatMessagePayload {
+    pub timestamp: Timestamp,
+    pub sender: AgentPubKey,
+    pub content: String,
+}
+
 // Signal enum definition
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum Signal {
     // Standard Holochain signals
@@ -79,6 +91,7 @@ pub enum Signal {
         score1: u32,
         score2: u32,
     },
+    GlobalChatMessage(ChatMessagePayload),
 }
 
 // post_commit hook (no changes needed here)
