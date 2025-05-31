@@ -52,10 +52,18 @@
 
   async function sendMessage() {
     if (!messageContent.trim()) return;
+    
+    if (!client) { // Check if the module-level client is initialized
+      sendError = "Holochain client not ready. Please wait or refresh.";
+      console.error("sendMessage called before client was initialized.");
+      // isSending = false; // isSending is set true below, ensure it's handled if returning early
+      return; // Do not proceed if client is not ready
+    }
+
     isSending = true;
     sendError = null;
     try {
-      const client = await getClient(); // Ensure client is resolved
+      // No longer call getClient(), use the module-level 'client' directly
       await client.callZome({
         cap_secret: null,
         role_name: HOLOCHAIN_ROLE_NAME,
@@ -140,7 +148,7 @@
       </p>
     {:else}
       <!-- This paragraph will inherit styles from '.chat-messages-placeholder p' and can be centered with a utility class if needed -->
-      <p class="text-center">
+      <p class="text-center"> 
         No messages yet. Be the first to say something!
       </p>
     {/each}
