@@ -147,15 +147,16 @@
             if (rawSignal.sender && typeof rawSignal.content === 'string' && typeof rawSignal.timestamp === 'number') {
 
                 const messageTimestamp = Math.floor(rawSignal.timestamp / 1000); // Assuming microseconds -> milliseconds
+                const senderB64 = encodeHashToBase64(rawSignal.sender); // Encode sender
 
                 const chatSignal: GlobalChatMessageSignal = {
                     type: "GlobalChatMessage",
-                    sender: rawSignal.sender,    // Already AgentPubKeyB64 string from client
+                    sender: senderB64,    // Use encoded sender
                     content: rawSignal.content,
                     timestamp: messageTimestamp, // Converted to milliseconds
                 };
                 addChatMessage(chatSignal);
-                // console.log("[App.svelte handleSignal] Added chat message to store (numeric timestamp):", chatSignal); // Info
+                // console.log("[App.svelte handleSignal] Added chat message to store (numeric timestamp, encoded sender):", chatSignal); // Info
 
             // Fallback for original [seconds, nanoseconds] array format (optional, but good for robustness)
             } else if (rawSignal.sender && typeof rawSignal.content === 'string' &&
@@ -163,15 +164,16 @@
                 typeof rawSignal.timestamp[0] === 'number' && typeof rawSignal.timestamp[1] === 'number') {
                 
                 const messageTimestamp = rawSignal.timestamp[0] * 1000 + Math.floor(rawSignal.timestamp[1] / 1000000);
+                const senderB64 = encodeHashToBase64(rawSignal.sender); // Encode sender
                 
                 const chatSignal: GlobalChatMessageSignal = {
                     type: "GlobalChatMessage",
-                    sender: rawSignal.sender,
+                    sender: senderB64, // Use encoded sender
                     content: rawSignal.content,
                     timestamp: messageTimestamp,
                 };
                 addChatMessage(chatSignal);
-                // console.log("[App.svelte handleSignal] Added chat message to store (array timestamp):", chatSignal); // Info
+                // console.log("[App.svelte handleSignal] Added chat message to store (array timestamp, encoded sender):", chatSignal); // Info
             }
             else {
                 // If neither matches, then it's malformed
