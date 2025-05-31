@@ -287,22 +287,100 @@ async function sendInvitation(invitee: AgentPubKey) {
 </div>
 
 <style>
-  /* ... (keep existing styles) ... */
-  .lobby { padding: 1rem; text-align: center; color: #fff; display: flex; flex-direction: column; gap: 1.5rem; }
-  .online-users { margin: 0; padding: 1rem; background-color: #3a3a3a; border-radius: 8px; color: #e0e0e0; }
-  .online-users h2 { margin-top: 0; color: orange; font-weight: bold; }
-  .online-users ul { list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; }
-  .online-users li { margin: 0.6rem 0; display: flex; justify-content: space-between; align-items: center; padding: 0.4rem; border-bottom: 1px solid #555; }
-  .online-users li:last-child { border-bottom: none; }
-  .error { color: #ff8080; font-size: 0.9em; }
-  .status { font-size: 0.85em; margin-left: 0.5em; color: #aaa; }
-  .status.available { color: lightgreen; }
-  .status.error { color: #ff8080; }
-  button { font-size: 1rem; padding: 0.4rem 0.8rem; border: none; background-color: #646cff; color: white; border-radius: 6px; cursor: pointer; transition: background-color 0.25s; }
-  button:hover { background-color: #535bf2; }
-  button:disabled, button.disabled { background-color: #555; cursor: not-allowed; opacity: 0.6; }
-  .play-button button { font-size: 1.5rem; padding: 0.8rem 1.5rem; }
-  /* Styles for status/error messages */
-  p.error { color: #ff8080; } /* Red for errors */
-  p:not(.error) { color: #ccc; } /* Grey/white for info/waiting messages */
+  .lobby {
+    padding: 1rem;
+    text-align: center;
+    color: var(--secondary-text-color); /* Was #fff */
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .online-users {
+    margin: 0;
+    padding: 1rem;
+    background-color: var(--container-bg-color); /* Was #3a3a3a */
+    border-radius: 8px;
+    color: var(--secondary-text-color); /* Was #e0e0e0 */
+  }
+  .online-users h2 {
+    margin-top: 0;
+    color: var(--primary-text-color); /* Was orange */
+    font-weight: bold; /* Kept bold as it's a heading style */
+  }
+  .online-users ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 200px; /* Kept as is, functional style */
+    overflow-y: auto; /* Kept as is, functional style */
+  }
+  .online-users li {
+    margin: 0.6rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.4rem;
+    border-bottom: 1px solid var(--border-color); /* Was #555 */
+  }
+  .online-users li:last-child {
+    border-bottom: none;
+  }
+  .error { /* For generic error text within the component, not necessarily .error-message class */
+    color: var(--error-text-color); /* Was #ff8080, now orange via variable */
+    font-size: 0.9em; /* Kept as is */
+  }
+  .status {
+    font-size: 0.85em; /* Kept as is */
+    margin-left: 0.5em; /* Kept as is */
+    color: var(--text-muted-color); /* Was #aaa */
+  }
+  .status.available {
+    color: var(--success-text-color); /* Was lightgreen */
+  }
+  .status.error { /* For status specific error indication */
+    color: var(--error-text-color); /* Was #ff8080, now orange via variable */
+  }
+
+  /* Button styles within Lobby - these are specific and override global button styles if needed, or complement them */
+  /* It seems these buttons are smaller than global, so some specific styling is fine */
+  .online-users button { /* Targeting invite buttons */
+    font-size: 0.9rem; /* Adjusted from 1rem for smaller context if desired, or keep global */
+    padding: 0.4rem 0.8rem;
+    border: 1px solid transparent; /* Consistent with global */
+    background-color: var(--button-bg-color);
+    color: var(--button-text-color);
+    border-radius: 6px; /* Consistent with global */
+    cursor: pointer;
+    transition: background-color 0.25s, border-color 0.25s; /* Consistent with global */
+  }
+  .online-users button:hover {
+    background-color: var(--button-hover-bg-color);
+    border-color: var(--primary-text-color); /* Consistent with global */
+  }
+  .online-users button:disabled, .online-users button.disabled {
+    background-color: var(--disabled-bg-color);
+    color: var(--disabled-text-color);
+    border-color: var(--disabled-bg-color); /* Ensure border matches disabled bg */
+    cursor: not-allowed;
+    opacity: 1; /* Global button styles might have opacity, explicitly set to 1 to rely on text/bg colors */
+  }
+
+  /* Play Random button in .play-button section - this seems to be styled by global button styles already via PlayButton.svelte */
+  /* .play-button button { font-size: 1.5rem; padding: 0.8rem 1.5rem; } */
+  /* This style in PlayButton.svelte might need to be updated or use global button and scale with em or specific class */
+
+
+  /* Styles for status/error messages text (not the .error-message class block) */
+  /* p.error is covered by .error above if it's just text color */
+  /* For other p tags that display status */
+  .lobby p:not(.error) { /* More specific selector for non-error status messages */
+    color: var(--text-muted-color); /* Was #ccc */
+  }
+
+  /* Ensure that if a p tag has class 'error', it uses the .error style */
+  .lobby p.error {
+    color: var(--error-text-color); /* Explicitly ensure error color */
+    font-size: 0.9em; /* From original .error */
+  }
+
 </style>
