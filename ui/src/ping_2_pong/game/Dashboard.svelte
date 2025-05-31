@@ -2,25 +2,26 @@
   import Leaderboard from "./Leaderboard.svelte";
   import Lobby from "./Lobby.svelte";
   import PlayButton from "./PlayButton.svelte";
-  import { currentRoute } from "../../stores/routeStore";
+  import GlobalChat from "../chat/GlobalChat.svelte"; // Added import
+  // import { currentRoute } from "../../stores/routeStore"; // No longer needed here for routing
   import { createEventDispatcher } from "svelte";
 
   const dispatch = createEventDispatcher();
 
-  function handlePlay() {
-    currentRoute.set("gameplay");
-  }
+  // function handlePlay() { // REMOVED - PlayButton now handles its own matchmaking logic
+  //   currentRoute.set("gameplay");
+  // }
 </script>
 
 <div class="dashboard-layout">
-  <div class="dashboard-sidebar-left">
+  <div class="dashboard-col-left">
     <Leaderboard />
   </div>
-  <div class="dashboard-center">
-    <PlayButton on:play={handlePlay} />
-    <!-- Static Global Chat Placeholder Removed -->
+  <div class="dashboard-col-center">
+    <PlayButton />
+    <GlobalChat />
   </div>
-  <div class="dashboard-sidebar-right">
+  <div class="dashboard-col-right">
     <!-- Lobby dispatches join-game events -->
     <Lobby on:join-game={(e) => dispatch("join-game", e.detail)} />
   </div>
