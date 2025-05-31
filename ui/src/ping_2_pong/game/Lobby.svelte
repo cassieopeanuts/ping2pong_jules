@@ -190,7 +190,7 @@
             {@const isDisabled = !(user.status === 'Available')}
             <li>
               <span title={user.pubKeyB64}>
-                {user.nickname || truncatePubkey(user.pubKeyB64, 6, 4)} {/* Show nickname or shorter truncated pubkey */}
+                {user.nickname || truncatePubkey(user.pubKeyB64, 6, 4)} <!-- Show nickname or shorter truncated pubkey -->
                 {#if user.status === 'Loading'} <em class="status">(Checking...)</em>
                 {:else if user.status === 'Error'} <em class="status error">(Status Error)</em>
                 {:else if user.status === 'InGame'} <em class="status">(In Game)</em>
