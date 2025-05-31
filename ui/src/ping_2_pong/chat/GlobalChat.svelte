@@ -1,13 +1,12 @@
 <script lang="ts">
   import { onMount, getContext, onDestroy } from 'svelte';
-  import { globalChatMessages } from '../../stores/chatStore'; // Adjust path if necessary, seems correct
-  import { clientContext } from '../../contexts'; // Adjust path if necessary, seems correct
-  import type { AppClient } from '@holochain/client';
-  // GlobalChatMessageSignal is implicitly used by $globalChatMessages store, explicit import not strictly needed here for that
-  // but good for clarity if we were to type a variable with it.
-  // import type { GlobalChatMessageSignal } from '../ping_2_pong/types'; // Adjust path if necessary, seems correct
-  import { truncatePubkey } from '../../utils'; // Import the new truncatePubkey
+  import { globalChatMessages } from '../../stores/chatStore';
+  import { clientContext, type ClientContext } from '../../contexts'; // Added ClientContext for typing
+  import type { AppClient, AgentPubKeyB64 } from '@holochain/client'; // Added AgentPubKeyB64
+  import { truncatePubkey } from '../../utils';
   import { HOLOCHAIN_ROLE_NAME, HOLOCHAIN_ZOME_NAME } from '../../holochainConfig';
+  import { writable, get as getStoreValue } from 'svelte/store'; // Added Svelte store imports
+  import { getOrFetchProfile, type DisplayProfile } from '../../stores/profilesStore'; // Import profile store
 
   let messageContent: string = "";
   let chatBox: HTMLElement; // For auto-scrolling
@@ -16,23 +15,40 @@
   let sendError: string | null = null;
   let isSending: boolean = false;
 
-  // Correctly get the Svelte context value
-  const appClientContextValue = getContext(clientContext);
+  let client: AppClient; // To be initialized in onMount
+  const appClientContext = getContext<ClientContext>(clientContext); // Typed getContext
 
-  async function getClient(): Promise<AppClient> {
-    // The context might store the client directly or a promise/function that resolves to it
-    // Based on typical patterns, it's often an object with a getClient method or the client itself.
-    // The example used `(appClientContext as any).getClient()`. Let's refine this a bit
-    // if `clientContext` provides `AppClient | Promise<AppClient>` or an object like `{ getClient: () => Promise<AppClient> }`
-    if (typeof (appClientContextValue as any)?.getClient === 'function') {
-      return await (appClientContextValue as any).getClient();
-    } else if (appClientContextValue instanceof Promise) {
-      return await appClientContextValue;
-    } else if (typeof (appClientContextValue as any)?.callZome === 'function') { // It might be the client itself
-      return appClientContextValue as AppClient;
+  // Store for fetched sender profiles
+  let senderProfiles = writable<Map<AgentPubKeyB64, DisplayProfile | null>>(new Map());
+
+  // Reactive block to fetch profiles for new senders
+  $: if ($globalChatMessages && client) {
+    const currentProfiles = getStoreValue(senderProfiles);
+    for (const msg of $globalChatMessages) {
+      if (!currentProfiles.has(msg.sender)) {
+        // Set to null initially to indicate loading / prevent multiple fetches
+        senderProfiles.update(m => {
+          const newMap = new Map(m);
+          newMap.set(msg.sender, null);
+          return newMap;
+        });
+        getOrFetchProfile(client, msg.sender).then(profile => {
+          if (profile) {
+            senderProfiles.update(m => {
+              const newMap = new Map(m);
+              newMap.set(msg.sender, profile);
+              return newMap;
+            });
+          }
+          // If profile is null (error or not found), it remains null in the map,
+          // which will cause fallback to truncatePubkey in the template.
+        });
+      }
     }
-    throw new Error("AppClient could not be retrieved from context.");
   }
+
+  // Removed old getClient() as client is now initialized in onMount and passed around.
+  // The sendMessage function will use the module-level 'client'.
 
   async function sendMessage() {
     if (!messageContent.trim()) return;
@@ -76,7 +92,9 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => { // Made onMount async
+    client = await appClientContext.getClient(); // Initialize client
+
     // Scroll to bottom when component mounts and when messages change
     unsubscribeFromStore = globalChatMessages.subscribe((messages) => {
       if (messages.length > 0) { // Only scroll if there are messages
@@ -85,7 +103,7 @@
     });
     // Initial scroll attempt, useful if messages are already loaded
     // Ensure chatBox is rendered before scrolling
-    setTimeout(scrollToBottom, 50); 
+    setTimeout(scrollToBottom, 50);
   });
 
   onDestroy(() => {
@@ -111,9 +129,11 @@
   <h4>Global Chat</h4>
   <div class="chat-messages-placeholder" bind:this={chatBox}>
     {#each $globalChatMessages as msg (msg.timestamp.toString() + msg.sender)}
+      {@const profile = $senderProfiles.get(msg.sender)}
       <p>
-        <!-- The 'span' for sender will be styled by '.chat-messages-placeholder p span' from index.css -->
-        <span title={msg.sender}>{truncatePubkey(msg.sender)}:</span>
+        <span title={msg.sender} class="sender"> <!-- Added class="sender" for consistent styling if needed -->
+          {profile?.nickname || truncatePubkey(msg.sender, 4, 4)}:
+        </span>
         <!-- Message content will be styled by '.chat-messages-placeholder p' -->
         {msg.content}
         <span class="chat-timestamp">{formatTimestamp(msg.timestamp)}</span>

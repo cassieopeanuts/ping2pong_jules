@@ -202,3 +202,25 @@ pub fn get_all_player_pubkeys(_: ()) -> ExternResult<Vec<AgentPubKey>> {
         
     Ok(pub_keys)
 }
+
+#[hdk_extern]
+pub fn get_player_profile_by_agent_key(agent_key: AgentPubKey) -> ExternResult<Option<Record>> {
+    let links = get_links(
+        GetLinksInputBuilder::try_new(agent_key.clone(), LinkTypes::PlayerToPlayers)?.build()
+    )?;
+
+    if let Some(link) = links.into_iter().next() { // Take the first link if multiple, though ideally only one
+        match link.target.into_action_hash() {
+            Some(action_hash) => {
+                get(action_hash, GetOptions::default()) // This returns ExternResult<Option<Record>>
+            }
+            None => {
+                // Link target is not an ActionHash, which is unexpected for this link type
+                Ok(None)
+            }
+        }
+    } else {
+        // No PlayerToPlayers link found for this agent_key
+        Ok(None)
+    }
+}

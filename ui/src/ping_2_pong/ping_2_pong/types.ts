@@ -28,3 +28,12 @@ export interface ChatMessagePayloadU { // U for UI
 // }
 // However, the current task asks for a flat structure for GlobalChatMessageSignal.
 // Sticking to the specified structure.
+
+// From ping_2_pong_integrity/src/player.rs (struct Player)
+// We need AgentPubKey from @holochain/client for this type in UI.
+import type { AgentPubKey } from '@holochain/client';
+
+export interface Player {
+  player_name: string;
+  player_key: AgentPubKey; // Raw AgentPubKey (Uint8Array) as it's stored in the entry
+}
