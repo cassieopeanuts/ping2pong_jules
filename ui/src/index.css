@@ -31,15 +31,15 @@ body {
   line-height: 1.6;
   font-weight: 400;
   color: var(--secondary-text-color);
-  background-color: var(--primary-bg-color);
+  background-color: var(--primary-bg-color); /* This will be the color outside the .app-main window */
   margin: 0;
   display: flex;
-  justify-content: center;
-  text-align: center;
-  align-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-  padding-top: 20px; /* Added padding for global layout */
+  justify-content: center; /* Center .app-main horizontally */
+  align-items: flex-start; /* Align .app-main to the top */
+  min-height: 100vh; /* Ensure body fills viewport height for centering */
+  padding-top: 20px;
+  /* text-align: center; Removed, let children handle text-align */
+  /* min-width: 320px; Removed, .app-main will control its width */
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -130,12 +130,21 @@ select:focus {
 .app-main {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: center; /* This centers children of .app-main, like user-header, dashboard-layout */
   justify-content: flex-start;
-  min-height: 100vh;
-  width:100%; /* Ensure it takes full width */
-  background-color: var(--primary-bg-color); /* Changed from #222 */
+
+  /* Fixed app window size */
+  width: 1200px;
+  max-width: 100%; /* Shrink on smaller viewports */
+  height: 800px;
+  max-height: calc(100vh - 40px); /* Account for body padding-top and some bottom margin */
+
+  background-color: var(--primary-bg-color); /* App window background */
+  border: 2px solid var(--border-color); /* Border for the app window */
+  overflow: auto; /* Allow scrolling within .app-main */
   padding-top: 10px;
+  margin: 0; /* Centered by body's flex properties */
+  min-height: 0; /* Override previous min-height: 100vh */
 }
 
 .user-header {
@@ -223,47 +232,68 @@ select:focus {
 */
 
 /* Dashboard.svelte specific styles */
-.dashboard-layout { /* Renamed from .dashboard to avoid conflicts if any, and for clarity */
-  display: grid;
-  /* grid-template-columns: 250px 1fr 250px; Example fixed widths */
-  grid-template-columns: 1fr minmax(auto, 3fr) 1fr; /* Flexible center, fr units for sidebars */
-  gap: 1.5rem;
+.dashboard-layout {
+  display: grid; /* Changed back to grid */
+  grid-template-columns: 1fr minmax(auto, 600px) 1fr; /* 3-column layout */
+  gap: 1.5rem; /* Gap between columns */
   width: 100%;
-  max-width: 1400px; /* Increased max-width for wider layout */
-  /* Adjusted height considering body padding and user-header. This might need dynamic calculation or different approach if header height varies significantly. */
-  min-height: calc(100vh - 80px - 3rem); /* body padding-top 20px + user-header margin 1rem + 1.5rem = ~80px approx */
+  max-width: 1400px;
+  min-height: calc(100vh - 80px - 3rem);
   background: var(--primary-bg-color);
   padding: 1rem;
   margin: 0 auto;
-  align-items: stretch; /* Make grid items stretch to fill height */
+  align-items: flex-start; /* Align columns at the top */
 }
 
-.dashboard-sidebar-left, .dashboard-sidebar-right {
-  background: var(--secondary-bg-color);
-  color: var(--secondary-text-color);
-  padding: 1.5rem;
-  border-radius: 0px; /* Blocky */
-  border: 2px solid var(--border-color); /* Added border */
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Keep shadow */
-  overflow-y: auto;
-  display: flex; /* To help content within fill height if necessary */
-  flex-direction: column;
-  height: 100%; /* Ensure sidebars take full available height of the grid row */
+.dashboard-col-left,
+.dashboard-col-right {
+  /* Styling for these columns can be minimal if Leaderboard/Lobby components have their own backgrounds/padding */
+  /* Or, apply card-like styling here if Leaderboard/Lobby are just content */
+  /* Assuming Leaderboard/Lobby components are styled (e.g. with their old sidebar styles) */
 }
 
-.dashboard-center {
+.dashboard-col-center {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: flex-start; /* Align PlayButton to top, chat will go below */
-  padding: 1rem;
-  gap: 1.5rem; /* Space between PlayButton and future chat */
+  align-items: center; /* Center PlayButton and GlobalChat */
+  gap: 1.5rem; /* Space between PlayButton and GlobalChat */
+  width: 100%; /* Take full width of the grid column */
 }
 
-/* Specific styling for components if they are direct children of new layout classes */
-.dashboard-sidebar-left > *, .dashboard-sidebar-right > * {
-    flex-grow: 1; /* Allow content like Leaderboard/Lobby to grow */
+/* Remove or repurpose old dashboard layout classes if no longer needed by other components */
+.dashboard-center {
+  /* This class was previously used for the single centered PlayButton area.
+     If it's not used by any other component for a different layout, it can be removed
+     or its styles merged into .dashboard-col-center if appropriate.
+     For now, let's assume it's specific to the old layout and can be cleared or its
+     specific layout properties (like max-width) are no longer needed if .dashboard-col-center handles it.
+     If PlayButton.svelte's container needs specific width, it should handle it internally.
+  */
+  padding: 0; /* Reset padding if it was specific to old layout */
+  max-width: none; /* Reset max-width */
 }
+
+.dashboard-bottom-sections { /* No longer used for this layout */
+  /* display: none; Or remove entirely if not used elsewhere */
+}
+.dashboard-section-left, .dashboard-section-right {
+  /* These classes were for the previous flex layout below the button.
+     The components (Leaderboard, Lobby) themselves should have styling.
+     If these classes applied specific card-like styles, those styles might need
+     to be ensured on .leaderboard and .lobby components directly or their new containers.
+     For now, remove specific layout properties like flex, min-width related to this old structure.
+     Background, padding, border etc. are on the components themselves or their new column wrappers.
+  */
+  background: initial;
+  color: initial;
+  padding: initial;
+  border: initial;
+  box-shadow: initial;
+  overflow-y: initial;
+  flex: initial;
+  min-width: initial;
+}
+
 
 /* Global Chat Placeholder styles */
 .global-chat-placeholder {
@@ -425,14 +455,21 @@ select:focus {
     padding-top: 10px;
   }
   .dashboard-layout {
-    grid-template-columns: 1fr; /* Stack columns on smaller screens */
+    grid-template-columns: 1fr; /* Stack columns */
     gap: 1rem;
-    min-height: auto; /* Adjust height for stacked layout */
+    min-height: auto;
     padding: 0.5rem;
   }
-  .dashboard-sidebar-left, .dashboard-sidebar-right {
-    margin-bottom: 1rem;
-    height: auto; /* Adjust height for stacked items */
+  .dashboard-col-left,
+  .dashboard-col-center,
+  .dashboard-col-right {
+    width: 100%; /* Make columns take full width when stacked */
+    max-width: 600px; /* Optional: constrain width of stacked columns */
+    margin: 0 auto 1rem auto; /* Center stacked columns and add bottom margin */
+  }
+  /* Ensure .dashboard-col-center still centers its internal items */
+  .dashboard-col-center {
+    align-items: center;
   }
   h1 { font-size: 2.2em; }
   h2 { font-size: 1.8em; }

@@ -8,129 +8,37 @@
   import type { PlayerStatus, Game } from "../ping_2_pong/types"; // Removed GameInvitationSignal
   import { decode } from "@msgpack/msgpack";
   import { HOLOCHAIN_ROLE_NAME, HOLOCHAIN_ZOME_NAME } from "../../holochainConfig";
+  import { getOrFetchProfile, type DisplayProfile } from "../../stores/profilesStore"; // Import profile store
+  import { truncatePubkey } from "../../utils"; // Import global truncatePubkey
 
   const dispatch = createEventDispatcher();
   let client: AppClient;
   const appClientContext = getContext<ClientContext>(clientContext);
 
   // --- Component State ---
-  let loading: boolean = false; // For Join/Create button
-  let statusMessage: string | null = null;  // Status/Error message display
-  interface OnlineUser { pubKey: AgentPubKey; status: PlayerStatus | 'Loading' | 'Error'; }
+  interface OnlineUser {
+    pubKey: AgentPubKey;
+    status: PlayerStatus | 'Loading' | 'Error';
+    nickname?: string;
+    pubKeyB64: string; // Store B64 for easier keying and display fallback
+  }
   let onlineUsers: OnlineUser[] = [];
   let fetchingUsers: boolean = false; // To prevent concurrent fetches
   let fetchError: string | null = null; // Error fetching users/status
   let invitationStatus: string | null = null; // Status/Error message for sending invites
 
   // --- Helper Functions ---
-  function truncatePubkey(pubkey: AgentPubKey): string {
-    try {
-        const base64 = encodeHashToBase64(pubkey);
-        return base64.slice(0, 8) + "..." + base64.slice(-6);
-    } catch(e) {
-        console.error("Error encoding pubkey:", e);
-        return "Error";
-    }
-  }
+  // Local truncatePubkey REMOVED - using imported one
 
   // --- Zome Calls & Logic ---
 
-  // Executed when "Play Random" is clicked
-  async function joinOrCreateGame() {
-  loading = true;
-  statusMessage = null;
+  // Executed when "Play Random" is clicked - MOVED to PlayButton.svelte
+  // async function joinOrCreateGame() { ... }
+
+  // Executed when "Invite" button is clicked
+  async function sendInvitation(invitee: AgentPubKey) {
   invitationStatus = null;
-
-  if (!client) {
-    statusMessage = "Holochain client not ready.";
-    loading = false;
-    return;
-  }
-
-  try {
-    // 1. fetch every game ever created
-    const allGames: Record[] = await client.callZome({
-      cap_secret: null,
-      role_name: HOLOCHAIN_ROLE_NAME,
-      zome_name: HOLOCHAIN_ZOME_NAME,
-      fn_name: "get_all_games",
-      payload: null
-    });
-
-    console.log(`[Lobby] Found ${allGames.length} total games.`);
-
-    let joinableGame: Record | null = null;
-    let myWaitingGame: Record | null = null;
-
-    // 2. walk through them, but **look at the latest revision**
-    for (const original of allGames) {
-      const latest: Record = await client.callZome({
-        cap_secret: null,
-        role_name: HOLOCHAIN_ROLE_NAME,
-        zome_name: HOLOCHAIN_ZOME_NAME,
-        fn_name: "get_latest_game",
-        payload: original.signed_action.hashed.hash           // original hash
-      });
-
-      const decoded = decode((latest.entry as any).Present.entry) as Game;
-
-      const waitingAndOpen =
-        decoded.game_status === "Waiting" && decoded.player_2 === null;
-
-      const isMine =
-        encodeHashToBase64(decoded.player_1) ===
-        encodeHashToBase64(client.myPubKey);
-
-      if (waitingAndOpen && !isMine) {
-        joinableGame = original;           // found something to join
-        break;
-      }
-
-      if (waitingAndOpen && isMine) {
-        myWaitingGame = original;          // remember my own “open” game
-      }
-    }
-
-    // 3. act on the result of the scan
-    if (joinableGame) {
-      // ---- JOIN a game someone else created ----
-      await client.callZome({
-        cap_secret: null,
-        role_name: HOLOCHAIN_ROLE_NAME,
-        zome_name: HOLOCHAIN_ZOME_NAME,
-        fn_name: "join_game",
-        payload: joinableGame.signed_action.hashed.hash
-      });
-      statusMessage = "Joining game… waiting for confirmation.";
-    } else if (myWaitingGame) {
-      // ---- I already created a waiting game earlier ----
-      statusMessage = "Already waiting for an opponent in your game.";
-    } else {
-      // ---- CREATE a brand-new game ----
-      const record: Record = await client.callZome({
-        cap_secret: null,
-        role_name: HOLOCHAIN_ROLE_NAME,
-        zome_name: HOLOCHAIN_ZOME_NAME,
-        fn_name: "create_game",
-        payload: { player_1: client.myPubKey, player_2: null }
-      });
-      console.log(
-        "[Lobby] Created new game, waiting:",
-        encodeHashToBase64(record.signed_action.hashed.hash)
-      );
-      statusMessage = "Game created. Waiting for an opponent…";
-    }
-  } catch (e) {
-    console.error("Error in joinOrCreateGame:", e);
-    statusMessage = (e as HolochainError).message;
-  } finally {
-    loading = false;
-  }
-}
-// Executed when "Invite" button is clicked
-async function sendInvitation(invitee: AgentPubKey) {
-  invitationStatus = null;
-  statusMessage    = null;               // Clear UI messages first
+  // statusMessage    = null; // No longer used here for joinOrCreateGame status
 
   if (!client) {
     invitationStatus = "Holochain client not ready.";
@@ -190,34 +98,54 @@ async function sendInvitation(invitee: AgentPubKey) {
   // Periodically fetch online users and their game status
   async function fetchOnlineUsersAndStatus() {
     if (fetchingUsers || !client) return;
-    fetchingUsers = true; fetchError = null;
+    fetchingUsers = true;
+    fetchError = null;
     try {
       const fetchedPubKeys: AgentPubKey[] = await client.callZome({
           cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
           fn_name: "get_online_users", payload: null
         });
 
-      const users = fetchedPubKeys.map(pubKey => ({ pubKey, status: 'Loading' } as OnlineUser));
-      onlineUsers = users; // Initial set with loading status
+      // Create initial user list with pubKey and loading status for nickname/status
+      const newOnlineUsers: OnlineUser[] = fetchedPubKeys.map(pubKey => ({
+        pubKey,
+        status: 'Loading',
+        pubKeyB64: encodeHashToBase64(pubKey) // Store B64 version
+      }));
+      onlineUsers = newOnlineUsers;
 
-      // Fetch status for each user individually
+      // Fetch profiles and statuses for each user
       for (let i = 0; i < onlineUsers.length; i++) {
-            const user = onlineUsers[i];
-            try {
-                  const statusResult = await client.callZome({
-                      cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
-                      fn_name: "get_player_status", payload: user.pubKey
-                  });
-                  // Assign the result (should be 'Available' or 'InGame')
-                  if (typeof statusResult === 'string') {
-                      onlineUsers[i] = { ...user, status: statusResult as PlayerStatus };
-                  } else {
-                       console.warn("Unexpected status result format:", statusResult);
-                       onlineUsers[i] = { ...user, status: 'Error' };
-                  }
-            } catch (statusError) { console.error(`Error fetching status for ${truncatePubkey(user.pubKey)}:`, statusError); onlineUsers[i] = { ...user, status: 'Error' }; }
+        const user = onlineUsers[i];
+
+        // Fetch profile (nickname)
+        getOrFetchProfile(client, user.pubKey).then(profile => {
+          if (profile) {
+            onlineUsers[i] = { ...onlineUsers[i], nickname: profile.nickname };
+            onlineUsers = [...onlineUsers]; // Trigger reactivity
+          }
+        });
+
+        // Fetch status
+        client.callZome({
+            cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
+            fn_name: "get_player_status", payload: user.pubKey
+        }).then(statusResult => {
+            if (typeof statusResult === 'string') {
+                onlineUsers[i] = { ...onlineUsers[i], status: statusResult as PlayerStatus };
+            } else {
+                 console.warn("Unexpected status result format:", statusResult);
+                 onlineUsers[i] = { ...onlineUsers[i], status: 'Error' };
+            }
+            onlineUsers = [...onlineUsers]; // Trigger reactivity
+        }).catch(statusError => {
+            console.error(`Error fetching status for ${truncatePubkey(user.pubKeyB64)}:`, statusError); // Use B64 for logging
+            onlineUsers[i] = { ...onlineUsers[i], status: 'Error' };
+            onlineUsers = [...onlineUsers]; // Trigger reactivity
+        });
       }
-      onlineUsers = [...onlineUsers]; // Trigger Svelte reactivity
+      // Initial render might show loading, then updates as promises resolve
+      // No need for final onlineUsers = [...onlineUsers] here as it's done within loops
 
     } catch (e) {
         const errorMsg = (e as HolochainError).message;
@@ -251,18 +179,18 @@ async function sendInvitation(invitee: AgentPubKey) {
 <div class="lobby">
   <section class="online-users">
     <h2>Online Users</h2>
-    {#if fetchingUsers && onlineUsers.length === 0} <p>Loading online users...</p>
-    {:else if fetchError} <p class="error">Error fetching users: {fetchError}</p>
-    {:else if onlineUsers.filter(u => encodeHashToBase64(u.pubKey) !== encodeHashToBase64(client?.myPubKey)).length === 0}
+    {#if fetchingUsers && onlineUsers.length === 0} <p class="loading-message">Loading online users...</p> <!-- Use global class -->
+    {:else if fetchError} <p class="error-message">Error fetching users: {fetchError}</p> <!-- Use global class -->
+    {:else if onlineUsers.filter(u => u.pubKeyB64 !== encodeHashToBase64(client?.myPubKey)).length === 0}
       <p>No other users online</p>
     {:else}
       <ul>
-        {#each onlineUsers as user (encodeHashToBase64(user.pubKey))}
-          {#if encodeHashToBase64(user.pubKey) !== encodeHashToBase64(client?.myPubKey)}
+        {#each onlineUsers as user (user.pubKeyB64)}
+          {#if user.pubKeyB64 !== encodeHashToBase64(client?.myPubKey)}
             {@const isDisabled = !(user.status === 'Available')}
             <li>
-              <span>
-                {truncatePubkey(user.pubKey)}
+              <span title={user.pubKeyB64}>
+                {user.nickname || truncatePubkey(user.pubKeyB64, 6, 4)} {/* Show nickname or shorter truncated pubkey */}
                 {#if user.status === 'Loading'} <em class="status">(Checking...)</em>
                 {:else if user.status === 'Error'} <em class="status error">(Status Error)</em>
                 {:else if user.status === 'InGame'} <em class="status">(In Game)</em>
@@ -278,11 +206,8 @@ async function sendInvitation(invitee: AgentPubKey) {
     {#if invitationStatus} <p class:error={!invitationStatus.startsWith("Invitation sent")} style="margin-top: 10px;">{invitationStatus}</p> {/if}
   </section>
 
-  <section class="play-button">
-    {#if loading} <p>Joining/Creating Game...</p>
-    {:else if statusMessage} <p class:error={!statusMessage.startsWith("Game created") && !statusMessage.startsWith("Joining game")} style="margin-top: 10px;">{statusMessage}</p>
-    {:else} <button on:click={joinOrCreateGame}>Play Random</button> {/if}
-  </section>
+  <!-- Play Random Button Section REMOVED -->
+  <!-- <section class="play-button"> ... </section> -->
 
 </div>
 
