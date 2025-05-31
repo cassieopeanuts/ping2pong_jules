@@ -139,10 +139,25 @@
           }
           // MODIFIED: Added GlobalChatMessage handler
           else if (actualSignal.type === "GlobalChatMessage") {
-            // console.log("[App.svelte handleSignal] Processing GlobalChatMessage...");
-            const rawSignal = actualSignal as any;
+            // console.log("[App.svelte handleSignal] Processing GlobalChatMessage..."); // Kept for specific debugging if needed
+            const rawSignal = actualSignal as any; // Keep 'as any' for flexibility
 
-            if (rawSignal.sender && typeof rawSignal.content === 'string' && 
+            // Check for the numeric timestamp first, as this is what's being observed
+            if (rawSignal.sender && typeof rawSignal.content === 'string' && typeof rawSignal.timestamp === 'number') {
+
+                const messageTimestamp = Math.floor(rawSignal.timestamp / 1000); // Assuming microseconds -> milliseconds
+
+                const chatSignal: GlobalChatMessageSignal = {
+                    type: "GlobalChatMessage",
+                    sender: rawSignal.sender,    // Already AgentPubKeyB64 string from client
+                    content: rawSignal.content,
+                    timestamp: messageTimestamp, // Converted to milliseconds
+                };
+                addChatMessage(chatSignal);
+                // console.log("[App.svelte handleSignal] Added chat message to store (numeric timestamp):", chatSignal); // Info
+
+            // Fallback for original [seconds, nanoseconds] array format (optional, but good for robustness)
+            } else if (rawSignal.sender && typeof rawSignal.content === 'string' &&
                 Array.isArray(rawSignal.timestamp) && rawSignal.timestamp.length === 2 &&
                 typeof rawSignal.timestamp[0] === 'number' && typeof rawSignal.timestamp[1] === 'number') {
                 
@@ -155,9 +170,11 @@
                     timestamp: messageTimestamp,
                 };
                 addChatMessage(chatSignal);
-                // console.log("[App.svelte handleSignal] Added chat message to store:", chatSignal); // Info
-            } else {
-                console.warn("[App.svelte handleSignal] Malformed GlobalChatMessage signal received or sender/timestamp issue:", rawSignal);
+                // console.log("[App.svelte handleSignal] Added chat message to store (array timestamp):", chatSignal); // Info
+            }
+            else {
+                // If neither matches, then it's malformed
+                console.warn("[App.svelte handleSignal] Malformed GlobalChatMessage signal received or sender/timestamp issue (unhandled format):", rawSignal);
             }
           }
           else {
@@ -177,7 +194,7 @@
     invitations.set([]); // Still clear invitations if one was accepted
   }
 
-  function handleRegistration() { 
+  function handleRegistration() {
     // console.log('Player registered!'); // Info
   }
 
