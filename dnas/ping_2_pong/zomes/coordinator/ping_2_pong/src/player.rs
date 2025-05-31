@@ -183,3 +183,22 @@ pub fn get_player_by_name(player_name: String) -> ExternResult<Option<Record>> {
         } else { Ok(None) }
     } else { Ok(None) }
 }
+
+#[hdk_extern]
+pub fn get_all_player_pubkeys(_: ()) -> ExternResult<Vec<AgentPubKey>> {
+    const ALL_PLAYERS_ANCHOR_STR: &str = "all_players";
+    let all_players_path = Path::from(ALL_PLAYERS_ANCHOR_STR);
+    let all_players_anchor_hash = all_players_path.path_entry_hash()?;
+
+    let links = get_links(
+        GetLinksInputBuilder::try_new(all_players_anchor_hash.clone(), LinkTypes::AllPlayersAnchorToAgentPubKey)?
+        .build()
+    )?;
+    
+    let pub_keys: Vec<AgentPubKey> = links
+        .into_iter()
+        .filter_map(|link| link.target.into_agent_pub_key()) // Link target is AgentPubKey
+        .collect();
+        
+    Ok(pub_keys)
+}
