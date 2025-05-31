@@ -73,6 +73,7 @@
 
   // --- Signal Handler ---
   function handleSignal(signalPayload: any) {
+      console.log("%%%% RAW SIGNAL RECEIVED BY CLIENT:", JSON.stringify(signalPayload, null, 2));
       // console.log("[App.svelte handleSignal] Received signal RAW:", JSON.stringify(signalPayload, null, 2)); // Too verbose
 
       if (signalPayload && typeof signalPayload === 'object' && signalPayload.App) {
