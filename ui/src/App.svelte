@@ -24,7 +24,7 @@
 
   // Import Components
   import WelcomePopup from "./ping_2_pong/WelcomePopup.svelte";
-  import GlobalChat from "./ping_2_pong/chat/GlobalChat.svelte"; // Adjust path if necessary
+  // import GlobalChat from "./ping_2_pong/chat/GlobalChat.svelte"; // REMOVED
   import Dashboard from "./ping_2_pong/game/Dashboard.svelte";
   import PongGame from "./ping_2_pong/game/PongGame.svelte";
   import StatisticsDashboard from "./ping_2_pong/game/StatisticsDashboard.svelte";
@@ -307,8 +307,7 @@
       </header>
     {/if}
 
-    <!-- ADDED GlobalChat component -->
-    <GlobalChat />
+    <!-- GlobalChat component REMOVED from App.svelte -->
 
     {#if currentInvitationToShow}
        {@const inviterName = truncatePubkey(currentInvitationToShow.inviter)}
