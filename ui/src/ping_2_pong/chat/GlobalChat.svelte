@@ -120,7 +120,7 @@
       </p>
     {:else}
       <!-- This paragraph will inherit styles from '.chat-messages-placeholder p' and can be centered with a utility class if needed -->
-      <p class="text-center"> 
+      <p class="text-center">
         No messages yet. Be the first to say something!
       </p>
     {/each}

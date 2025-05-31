@@ -2,8 +2,8 @@ import { encodeHashToBase64, type AgentPubKey, type AgentPubKeyB64 } from "@holo
 
 /**
  * Truncates a Holochain AgentPubKey (either raw or Base64 encoded) for display.
- * 
- * @param pubkey - The public key to truncate. Can be AgentPubKey (Uint8Array), 
+ *
+ * @param pubkey - The public key to truncate. Can be AgentPubKey (Uint8Array),
  *                 AgentPubKeyB64 (string), a generic string, null, or undefined.
  * @param prefixLength - The number of characters to show from the beginning of the Base64 string.
  * @param suffixLength - The number of characters to show from the end of the Base64 string.
