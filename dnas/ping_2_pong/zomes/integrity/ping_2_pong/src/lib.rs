@@ -59,6 +59,7 @@ pub enum LinkTypes {
     PlayerUpdates,
     PlayerToScores,
     Presence,
+    AllPlayersAnchorToAgentPubKey, // For linking the "all_players" anchor to each player's AgentPubKey
 }
 
 
@@ -141,6 +142,18 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                                 LinkTypes::PlayerUpdates => validate_player_updates_link(&create_link),
                                 LinkTypes::PlayerToScores => validate_player_to_scores_link(&create_link),
                                 LinkTypes::Presence => validate_presence_link(&create_link),
+                                LinkTypes::AllPlayersAnchorToAgentPubKey => {
+                                    // Base must be an EntryHash (the anchor)
+                                    if create_link.base_address.clone().into_entry_hash().is_none() {
+                                        return Ok(ValidateCallbackResult::Invalid("AllPlayersAnchorToAgentPubKey base must be an EntryHash (anchor)".into()));
+                                    }
+                                    // Target must be an AgentPubKey
+                                    if create_link.target_address.clone().into_agent_pub_key().is_none() {
+                                        return Ok(ValidateCallbackResult::Invalid("AllPlayersAnchorToAgentPubKey target must be an AgentPubKey".into()));
+                                    }
+                                    // Author: Anyone can create this link (typically the player themselves during registration)
+                                    Ok(ValidateCallbackResult::Valid)
+                                }
                             }
                         }
                         None => Ok(ValidateCallbackResult::Valid), // Allow unknown link types from other zomes

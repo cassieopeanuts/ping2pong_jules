@@ -36,6 +36,18 @@ pub fn create_player(player: Player) -> ExternResult<Record> {
     let name_anchor = anchor_for(&player.player_name.to_lowercase())?;
     create_link( name_anchor, player_action_hash.clone(), LinkTypes::PlayerNameToPlayer, (), )?;
 
+    // Link player to the "all_players" anchor
+    const ALL_PLAYERS_ANCHOR_STR: &str = "all_players";
+    let all_players_path = Path::from(ALL_PLAYERS_ANCHOR_STR);
+    // Optional: all_players_path.ensure()?; // Ensure the path entry itself exists if needed by your design
+    let all_players_anchor_hash = all_players_path.path_entry_hash()?;
+    create_link(
+        all_players_anchor_hash.clone(), // Base for the link
+        player.player_key.clone(),       // Target of the link is AgentPubKey
+        LinkTypes::AllPlayersAnchorToAgentPubKey,
+        LinkTag::new(vec![]) // Empty tag
+    )?;
+
     let record = get(player_action_hash.clone(), GetOptions::default())?.ok_or(wasm_error!( WasmErrorInner::Guest("Could not find the newly created Player".to_string()) ))?;
     Ok(record)
 }
@@ -170,4 +182,23 @@ pub fn get_player_by_name(player_name: String) -> ExternResult<Option<Record>> {
             get_original_player(action_hash)
         } else { Ok(None) }
     } else { Ok(None) }
+}
+
+#[hdk_extern]
+pub fn get_all_player_pubkeys(_: ()) -> ExternResult<Vec<AgentPubKey>> {
+    const ALL_PLAYERS_ANCHOR_STR: &str = "all_players";
+    let all_players_path = Path::from(ALL_PLAYERS_ANCHOR_STR);
+    let all_players_anchor_hash = all_players_path.path_entry_hash()?;
+
+    let links = get_links(
+        GetLinksInputBuilder::try_new(all_players_anchor_hash.clone(), LinkTypes::AllPlayersAnchorToAgentPubKey)?
+        .build()
+    )?;
+    
+    let pub_keys: Vec<AgentPubKey> = links
+        .into_iter()
+        .filter_map(|link| link.target.into_agent_pub_key()) // Link target is AgentPubKey
+        .collect();
+        
+    Ok(pub_keys)
 }
