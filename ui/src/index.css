@@ -15,7 +15,15 @@
   --input-border-color: var(--border-color);
   --input-focus-border-color: var(--primary-text-color); /* Main Orange for input focus */
   --input-focus-shadow-color: rgba(255, 165, 0, 0.25); /* Slightly stronger shadow */
-  --font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --font-family: 'Press Start 2P', 'PixelFont', Consolas, 'Courier New', Courier, monospace, system-ui;
+
+  /* Additional theme variables */
+  --error-text-color: var(--primary-text-color); /* Orange for errors, consistent with .error-message */
+  --error-bg-color: #440000; /* Dark red background for error messages */
+  --success-text-color: lightgreen;
+  --disabled-bg-color: #555555;
+  --disabled-text-color: #aaaaaa;
+  --text-muted-color: rgba(255, 255, 255, 0.7);
 }
 
 body {
@@ -61,8 +69,10 @@ a:hover {
 }
 
 button, .button { /* Added .button class for elements that are not <button> */
-  border-radius: 6px;
-  border: 1px solid transparent;
+  border-radius: 0px; /* Blocky */
+  border-width: 2px; /* Thicker */
+  border-style: solid;
+  border-color: var(--primary-text-color); /* Default visible border */
   padding: 0.7em 1.4em;
   font-size: 1em;
   font-weight: 500;
@@ -76,7 +86,7 @@ button, .button { /* Added .button class for elements that are not <button> */
 
 button:hover, .button:hover {
   background-color: var(--button-hover-bg-color);
-  border-color: var(--primary-text-color); /* Use main orange for border on hover */
+  border-color: var(--primary-text-hover-color); /* Slightly different for hover emphasis */
 }
 
 button:focus,
@@ -97,8 +107,10 @@ select {
   width: calc(100% - 1.5em); /* Adjust width for padding */
   padding: 0.75em;
   margin: 0.5em 0 1em 0; /* Added bottom margin */
-  border: 1px solid var(--input-border-color);
-  border-radius: 4px;
+  border-width: 2px; /* Thicker */
+  border-style: solid;
+  border-color: var(--input-border-color);
+  border-radius: 0px; /* Blocky */
   font-family: inherit;
   font-size: 1em;
   color: var(--secondary-text-color);
@@ -111,7 +123,7 @@ textarea:focus,
 select:focus {
   outline: none;
   border-color: var(--input-focus-border-color);
-  box-shadow: 0 0 0 3px var(--input-focus-shadow-color);
+  /* box-shadow: 0 0 0 3px var(--input-focus-shadow-color); Removed for blockier feel */
 }
 
 /* App.svelte specific styles */
@@ -134,8 +146,9 @@ select:focus {
   max-width: 500px; /* Max width for very large screens */
   background-color: var(--secondary-bg-color); /* Darker gray */
   margin: 1rem auto 1.5rem auto; /* Top, auto horizontal, bottom */
-  border-radius: 6px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  border-radius: 0px; /* Blocky */
+  border: 2px solid var(--border-color); /* Added border */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3); /* Keep shadow for depth, or remove if strictly 2D */
 }
 
 .user-header p {
@@ -167,10 +180,12 @@ select:focus {
 .welcome-popup-content { /* Added a content wrapper for better styling */
   background-color: var(--secondary-bg-color);
   padding: 2rem 3rem;
-  border-radius: 8px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+  border-radius: 0px; /* Blocky */
+  box-shadow: 0 5px 15px rgba(0,0,0,0.5); /* Keep shadow for depth */
   text-align: center;
-  border: 1px solid var(--primary-text-color); /* Added orange border */
+  border-width: 2px; /* Thicker */
+  border-style: solid;
+  border-color: var(--primary-text-color); /* Was 1px solid */
 }
 
 .welcome-popup h2 {
@@ -227,8 +242,9 @@ select:focus {
   background: var(--secondary-bg-color);
   color: var(--secondary-text-color);
   padding: 1.5rem;
-  border-radius: 8px; /* Consistent border radius */
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  border-radius: 0px; /* Blocky */
+  border: 2px solid var(--border-color); /* Added border */
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Keep shadow */
   overflow-y: auto;
   display: flex; /* To help content within fill height if necessary */
   flex-direction: column;
@@ -256,8 +272,10 @@ select:focus {
   margin-top: 1rem; /* Adjusted from 2rem to fit better if PlayButton is large */
   padding: 1.5rem;
   background-color: var(--secondary-bg-color);
-  border: 1px solid var(--primary-text-color);
-  border-radius: 8px; /* Using a specific value, can replace with --border-radius if defined elsewhere */
+  border-width: 2px; /* Thicker */
+  border-style: solid;
+  border-color: var(--primary-text-color); /* Was 1px */
+  border-radius: 0px; /* Blocky */
   text-align: left; /* Chat messages usually start from left */
   color: var(--secondary-text-color); /* Default text color for messages etc. */
   display: flex;
@@ -277,11 +295,13 @@ select:focus {
 .chat-messages-placeholder {
   background-color: var(--primary-bg-color); /* Black background */
   padding: 1rem;
-  border-radius: 6px; /* Slightly smaller radius than container */
+  border-radius: 0px; /* Blocky */
   /* height: 150px; REMOVED Fixed height */
   flex-grow: 1; /* Allow message area to fill available vertical space */
   overflow-y: auto; /* Allow scrolling for messages if they overflow */
-  border: 1px solid var(--border-color); /* Subtle border */
+  border-width: 2px; /* Thicker */
+  border-style: solid;
+  border-color: var(--border-color); /* Was 1px */
   min-height: 100px; /* Ensure it doesn't collapse too much if parent is small, though parent has fixed height now */
 }
 
@@ -310,11 +330,12 @@ select:focus {
   background: var(--container-bg-color); /* Use container background */
   color: var(--secondary-text-color);
   text-align: center;
-  border-radius: 8px;
+  border-radius: 0px; /* Blocky */
+  border: 2px solid var(--border-color); /* Added border */
   width: 100%;
   max-width: 700px; /* Max width for content */
   margin: 2rem auto; /* Center and add margin */
-  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3); /* Keep shadow */
 }
 
 .statistics-dashboard h2 {
@@ -331,7 +352,8 @@ select:focus {
   background: var(--secondary-bg-color); /* Darker, consistent background */
   color: var(--secondary-text-color);
   padding: 2rem 2.5rem; /* Adjusted padding */
-  border-radius: 10px; /* Slightly more rounded corners */
+  border-radius: 0px; /* Blocky */
+  border: 2px solid var(--primary-text-color); /* Added border */
   z-index: 1001; /* Ensure it's above welcome popup if ever co-existing */
   width: 320px; /* Standardized width */
   text-align: center;
@@ -381,11 +403,13 @@ select:focus {
 }
 
 .error-message {
-  color: var(--primary-text-color); /* Orange for errors */
-  background-color: #440000; /* Dark red background */
+  color: var(--error-text-color); /* Use variable */
+  background-color: var(--error-bg-color); /* Use variable */
   padding: 1rem;
-  border-radius: 5px;
-  border: 1px solid var(--primary-text-color);
+  border-radius: 0px; /* Blocky */
+  border-width: 2px; /* Thicker */
+  border-style: solid;
+  border-color: var(--primary-text-color); /* Was 1px */
   margin: 1rem 0;
 }
 

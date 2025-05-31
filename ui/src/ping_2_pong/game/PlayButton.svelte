@@ -8,7 +8,7 @@
 </script>
 
 <button on:click={play} class="play-button">
-  Play
+  Play Random
 </button>
 
 <style>

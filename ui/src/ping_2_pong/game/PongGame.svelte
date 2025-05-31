@@ -546,15 +546,15 @@
 
     // --- Drawing ---
     // Clear canvas and draw background/midline
-    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    ctx.strokeStyle = "#555"; ctx.lineWidth = 4; ctx.beginPath();
+    ctx.fillStyle = "#FFA500"; /* Orange, from --primary-text-color */ ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.strokeStyle = "#000000"; /* Black */ ctx.lineWidth = 4; ctx.beginPath();
     ctx.setLineDash([10, 10]); ctx.moveTo(CANVAS_WIDTH / 2, 0); ctx.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT);
     ctx.stroke(); ctx.setLineDash([]); // Reset line dash style
 
     // Display Loading or Error message if game state isn't loaded yet
     // Use loadingMsg first, then errorMsg if initialization failed
     if (!liveGame && !gameOver) { // Only show loading/error if game hasn't started or finished
-        ctx.fillStyle = "#fff"; ctx.font = "30px Arial"; ctx.textAlign = "center";
+        ctx.fillStyle = "#000000"; /* Black text on orange background */ ctx.font = "30px 'Press Start 2P', monospace"; ctx.textAlign = "center";
         ctx.fillText(errorMsg || loadingMsg || "Loading...", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
         // Keep requesting frames only if still loading (no error and not game over)
         if (!errorMsg && loadingMsg) animationFrameId = requestAnimationFrame(draw);
@@ -563,13 +563,13 @@
 
     // Draw Game Elements (only if liveGame is set)
     if (liveGame) {
-        ctx.fillStyle = "#fff";
+        ctx.fillStyle = "#000000"; /* Black */
         ctx.fillRect(0, paddle1Y, PADDLE_WIDTH, PADDLE_HEIGHT); // Player 1 Paddle (left)
         ctx.fillRect(CANVAS_WIDTH - PADDLE_WIDTH, paddle2Y, PADDLE_WIDTH, PADDLE_HEIGHT); // Player 2 Paddle (right)
         ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, 2 * Math.PI); ctx.fill(); // Ball
 
         // Draw Scores
-        ctx.font = "40px 'Courier New', Courier, monospace"; ctx.textAlign = "center";
+        ctx.font = "40px 'Press Start 2P', monospace"; ctx.textAlign = "center"; // fillStyle is already black
         ctx.fillText(score.player1.toString(), CANVAS_WIDTH / 4, 60); // Player 1 Score
         ctx.fillText(score.player2.toString(), (3 * CANVAS_WIDTH) / 4, 60); // Player 2 Score
     }
@@ -577,17 +577,17 @@
     // --- Game Over Overlay ---
     // Display if the gameOver flag is true
     if (gameOver) {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT); // Dim background
-        ctx.fillStyle = "#fff"; ctx.font = "50px Arial"; ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT); // Dim background (semi-transparent black still fine)
+        ctx.fillStyle = "#000000"; /* Black text */ ctx.font = "50px 'Press Start 2P', monospace"; ctx.textAlign = "center";
         ctx.fillText("GAME OVER", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 50);
-        ctx.font = "30px Arial";
+        ctx.font = "30px 'Press Start 2P', monospace";
          // Display winner's name
          if (winner && liveGame) {
              const winnerName = encodeHashToBase64(winner) === encodeHashToBase64(liveGame.player_1) ? "Player 1" : "Player 2";
              ctx.fillText(`${winnerName} Wins!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
          } else { ctx.fillText("Game Finished", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2); } // Fallback if no winner determined
          // Display final score
-         ctx.font = "40px Arial";
+         ctx.font = "40px 'Press Start 2P', monospace";
          ctx.fillText(`${score.player1} - ${score.player2}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
         // Stop the animation loop once the game over screen is drawn
         return;
@@ -671,37 +671,40 @@
     justify-content: space-between;
     padding: 0 15px; /* Padding on the sides */
     box-sizing: border-box; /* Include padding in width calculation */
-    color: orange;
+    color: var(--primary-text-color); /* Was orange */
     font-size: 0.9rem;
-    font-weight: bold;
+    font-weight: bold; /* Keep bold for info emphasis */
     z-index: 1; /* Ensure it's above the canvas */
     pointer-events: none; /* Prevent interaction */
   }
   .player { background-color: rgba(0,0,0,0.6); padding: 3px 6px; border-radius: 4px; }
   canvas {
-    background-color: #000;
+    background-color: var(--primary-text-color); /* Orange */
     display: block; /* Remove extra space below canvas */
     margin: 0 auto; /* Center canvas */
-    border: 3px solid #646cff; /* Border around the game area */
-    box-shadow: 0 0 10px rgba(100, 108, 255, 0.5); /* Optional glow effect */
+    border: 2px solid var(--primary-bg-color); /* Thick black border */
+    box-shadow: none; /* Removed glow effect */
   }
   .exit-game-button {
     position: absolute;
-    top: 5px; /* Position near the top */
-    right: 15px; /* Position on the right */
+    top: 10px; /* Adjusted for better spacing with new border */
+    right: 10px; /* Adjusted for better spacing with new border */
     z-index: 10;
   }
   .exit-game-button button {
-    font-size: 0.9rem;
-    padding: 0.4rem 0.8rem;
-    background-color: #aa4a44; /* Reddish color */
-    color: white;
-    border: none;
-    border-radius: 5px;
+    font-size: 0.9rem; /* Kept smaller size */
+    padding: 0.4rem 0.8rem; /* Kept smaller padding */
+    background-color: var(--button-bg-color);
+    color: var(--button-text-color);
+    /* border: none; Inherits from global button style now which has border */
+    /* border-radius: 5px; Inherits from global button style (0px) */
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    /* transition: background-color 0.2s ease; Inherits */
   }
-   .exit-game-button button:hover { background-color: #883a34; }
+   .exit-game-button button:hover {
+     background-color: var(--button-hover-bg-color);
+     /* border-color will also be handled by global if set */
+   }
 
   .game-over-menu {
     position: absolute;
@@ -711,14 +714,17 @@
     z-index: 10;
   }
   .game-over-menu button {
-    font-size: 1.2rem;
-    padding: 0.8rem 1.5rem;
-    background-color: #646cff; /* Blue color */
-    color: white;
-    border: none;
-    border-radius: 5px;
+    font-size: 1.2rem; /* Kept larger size */
+    padding: 0.8rem 1.5rem; /* Kept larger padding */
+    background-color: var(--button-bg-color);
+    color: var(--button-text-color);
+    /* border: none; Inherits */
+    /* border-radius: 5px; Inherits */
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    /* transition: background-color 0.2s ease; Inherits */
   }
-  .game-over-menu button:hover { background-color: #535bf2; }
+  .game-over-menu button:hover {
+    background-color: var(--button-hover-bg-color);
+    /* border-color will also be handled by global if set */
+  }
 </style>
