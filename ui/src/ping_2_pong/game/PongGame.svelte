@@ -9,6 +9,7 @@
   // Import local types including the specific signal structures if needed for receiving
   // Note: Signal types are used here for clarity but aren't strictly required if only checking `signalPayload.type`
   import type { Game, Score, GameStatus, UpdateGameInput, PaddleUpdateSignal, BallUpdateSignal, GameOverSignal, ScoreUpdateSignal } from "../ping_2_pong/types";
+  import { HOLOCHAIN_ROLE_NAME, HOLOCHAIN_ZOME_NAME } from "../../holochainConfig"; // Import constants
 
   // Create dispatcher to send events up to the parent (App.svelte)
   const dispatch = createEventDispatcher();
@@ -90,8 +91,8 @@
       // Call the zome function to get the latest game record based on the original hash
       const result: Record | null = await client.callZome({
         cap_secret: null,
-        role_name: "ping_2_pong",
-        zome_name: "ping_2_pong",
+        role_name: HOLOCHAIN_ROLE_NAME,
+        zome_name: HOLOCHAIN_ZOME_NAME,
         fn_name: "get_latest_game", // Gets the record associated with the latest update action
         payload: gameId, // Pass the original game hash
       });
@@ -258,11 +259,11 @@
     try {
       // Call the specific backend function to send the signal
       await client.callZome({
-          cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong",
+          cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
           fn_name: "send_paddle_update", // Use the dedicated function
           payload: payload
       });
-    } catch (e) { console.error("Error sending paddle update signal:", e); }
+    } catch (e) { console.error("Error sending paddle update signal. Full error:", e); } // Enhanced log
   }
 
   // Sends the current ball position and velocity update signal (only Player 1 does this)
@@ -284,11 +285,11 @@
     try {
       // Call the specific backend function
       await client.callZome({
-          cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong",
+          cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
           fn_name: "send_ball_update", // Use the dedicated function
           payload: payload
       });
-    } catch (e) { console.error("Error sending ball update signal:", e); }
+    } catch (e) { console.error("Error sending ball update signal. Full error:", e); } // Enhanced log
   }
 
   async function sendScoreUpdate() {
@@ -296,8 +297,8 @@
     try {
       await client.callZome({
         cap_secret: null,
-        role_name : "ping_2_pong",
-        zome_name : "ping_2_pong",
+        role_name : HOLOCHAIN_ROLE_NAME,
+        zome_name : HOLOCHAIN_ZOME_NAME,
         fn_name   : "send_score_update",            // <- backend helper you added earlier
         payload: {
           game_id: gameId,
@@ -305,7 +306,7 @@
           score2 : score.player2
         }
       });
-    } catch (e) { console.error("Score update failed:", e); }
+    } catch (e) { console.error("Score update failed. Full error:", e); } // Enhanced log
   }
 
   // Sets up the listener for incoming signals related to this specific game
@@ -470,31 +471,40 @@
             };
             console.log("Updating game status to Finished with payload:", updatePayload);
             // Call the backend zome function to commit the update
-            await client.callZome({ cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong", fn_name: "update_game", payload: updatePayload });
-            console.log("Game status updated on DHT.");
-       } catch (e) { console.error("Error updating game status:", e); errorMsg="Failed to update game status."; /* Continue anyway */ }
+            await client.callZome({ cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME, fn_name: "update_game", payload: updatePayload });
+            console.log("Game status updated on DHT successfully.");
+       } catch (e: any) { 
+            console.error("CRITICAL: Error updating game status to Finished. Full error:", e); // Enhanced log
+            errorMsg = `Failed to finalize game status: ${e.data?.data || e.message || "Unknown error"}. Scores not saved.`;
+            // The errorMsg should be displayed by the draw() function.
+            return; // IMPORTANT: Stop further processing (like create_score)
+       }
 
        // 2. Save Final Scores for both players on the DHT
        try {
-           if (!liveGame || !liveGame.player_1) { throw new Error("liveGame or player_1 missing"); }
+           if (!liveGame || !liveGame.player_1) { throw new Error("liveGame or player_1 missing for score saving"); }
            // Prepare payload for Player 1's score (backend sets timestamp)
            const score1Payload: Omit<Score, 'created_at'> & { created_at?: number } = {
                game_id: original_game_hash,
-               player: liveGame.player_1,
+               player: liveGame.player_1, // Already AgentPubKey
                player_points: score.player1,
            };
-           await client.callZome({ cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong", fn_name: "create_score", payload: score1Payload });
-           // Prepare and send payload for Player 2's score (if P2 exists)
+           await client.callZome({ cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME, fn_name: "create_score", payload: score1Payload });
+           
            if (liveGame.player_2) {
                 const score2Payload: Omit<Score, 'created_at'> & { created_at?: number } = {
                    game_id: original_game_hash,
-                   player: liveGame.player_2,
+                   player: liveGame.player_2, // Already AgentPubKey
                    player_points: score.player2,
                 };
-                await client.callZome({ cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong", fn_name: "create_score", payload: score2Payload });
+                await client.callZome({ cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME, fn_name: "create_score", payload: score2Payload });
            }
            console.log("Scores saved.");
-       } catch (e) { console.error("Error saving scores:", e); errorMsg = "Failed to save scores."; }
+       } catch (e: any) { 
+           console.error("Error saving scores. Full error:", e); // Enhanced log
+           errorMsg = `Failed to save scores: ${e.data?.data || e.message || "Unknown error"}.`;
+           // No return here, as game status might have updated successfully.
+       }
 
        // 3. Send GameOver signal using the specific function
        try {
@@ -507,12 +517,12 @@
            };
            // Call the specific backend function to send the signal
            await client.callZome({
-               cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong",
+               cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
                fn_name: "send_game_over", // *** Use the specific function ***
                payload: gameOverPayload
             });
            console.log("GameOver signal sent.");
-       } catch(e) { console.error("Error sending GameOver signal:", e); }
+       } catch(e: any) { console.error("Error sending GameOver signal. Full error:", e); } // Enhanced log
 
        // 4. (Future) Implement saving game statistics here
        // await saveStatistics();
@@ -701,8 +711,8 @@
     cursor: pointer;
     /* transition: background-color 0.2s ease; Inherits */
   }
-   .exit-game-button button:hover {
-     background-color: var(--button-hover-bg-color);
+   .exit-game-button button:hover { 
+     background-color: var(--button-hover-bg-color); 
      /* border-color will also be handled by global if set */
    }
 
@@ -723,7 +733,7 @@
     cursor: pointer;
     /* transition: background-color 0.2s ease; Inherits */
   }
-  .game-over-menu button:hover {
+  .game-over-menu button:hover { 
     background-color: var(--button-hover-bg-color);
     /* border-color will also be handled by global if set */
   }

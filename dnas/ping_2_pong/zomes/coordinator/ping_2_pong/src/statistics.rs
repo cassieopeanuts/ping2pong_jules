@@ -1,8 +1,17 @@
 // ping_2_pong/dnas/ping_2_pong/zomes/coordinator/ping_2_pong/src/statistics.rs
 use hdk::prelude::*;
-use ping_2_pong_integrity::*;
+use ping_2_pong_integrity::*; // This should bring Score into scope
 use crate::utils::get_game_hash_by_id; // Use helper
 use ping_2_pong_integrity::game::GameStatus;
+use crate::player::get_all_player_pubkeys; // For leaderboard
+use crate::score::get_scores_for_player;   // For leaderboard
+
+#[derive(Serialize, Deserialize, Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub struct LeaderboardEntry {
+    pub player_key: AgentPubKey,
+    pub total_points: u32,
+    pub games_played: u32,
+}
 
 // Define maximum allowed values as constants - Keep these reasonable sanity checks
 const MAX_LATENCY: u32 = 30000; // 30 seconds - high, but allows for network issues
@@ -143,3 +152,50 @@ pub fn get_all_deletes_for_statistics(original_statistics_hash: ActionHash) -> E
 #[hdk_extern]
 pub fn get_oldest_delete_for_statistics(original_statistics_hash: ActionHash) -> ExternResult<Option<SignedActionHashed>> { ... }
 */
+
+#[hdk_extern]
+pub fn get_leaderboard_data(_: ()) -> ExternResult<Vec<LeaderboardEntry>> {
+    // 1. Get all player public keys
+    let all_player_keys = get_all_player_pubkeys(())?;
+
+    let mut leaderboard_entries: Vec<LeaderboardEntry> = Vec::new();
+
+    // 2. For each player, get their scores and aggregate
+    for player_key in all_player_keys {
+        let score_records = get_scores_for_player(player_key.clone())?;
+
+        let mut total_points: u32 = 0;
+        let mut games_played: u32 = 0;
+
+        for record in score_records {
+            match record.entry().to_app_option::<ping_2_pong_integrity::Score>() { // Using revised deserialization
+                Ok(Some(score_entry)) => {
+                    total_points += score_entry.player_points;
+                    games_played += 1;
+                }
+                Ok(None) => {
+                    warn!("Score record for player {:?} has no app entry after deserialization attempt.", player_key);
+                }
+                Err(e) => {
+                    warn!("Failed to deserialize Score app entry for player {:?}: {:?}", player_key, e);
+                }
+            }
+        }
+        
+        // Add player to leaderboard even if they have 0 games/points
+        leaderboard_entries.push(LeaderboardEntry {
+            player_key: player_key.clone(),
+            total_points,
+            games_played,
+        });
+    }
+
+    // 3. Sort the leaderboard
+    leaderboard_entries.sort_by(|a, b| {
+        b.total_points.cmp(&a.total_points) // Sort by total_points descending
+            .then_with(|| a.games_played.cmp(&b.games_played)) // Then by games_played ascending
+            .then_with(|| a.player_key.cmp(&b.player_key)) // Then by player_key for consistent tie-breaking
+    });
+
+    Ok(leaderboard_entries)
+}
