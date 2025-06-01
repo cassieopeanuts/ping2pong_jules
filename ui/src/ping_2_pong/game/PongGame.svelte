@@ -29,7 +29,7 @@
   const PADDLE_HEIGHT = 100;
   const BALL_RADIUS = 10;
   const WINNING_SCORE = 10;
-  const PADDLE_SPEED = 15;
+  const PADDLE_SPEED = 18;
   const UPDATE_INTERVAL = 50; // ms interval for sending signal updates
 
   // Component State

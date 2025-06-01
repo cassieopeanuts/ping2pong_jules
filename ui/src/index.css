@@ -28,6 +28,11 @@
   --text-muted-color: rgba(255, 255, 255, 0.7);
 }
 
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   font-family: 'Press Start 2P', monospace; /* Monospace is a good fallback for 8-bit fonts */
   /* font-family: var(--font-family); */ /* Original line, now superseded by direct application */
@@ -36,13 +41,11 @@ body {
   color: var(--secondary-text-color);
   background-color: var(--primary-bg-color); /* This will be the color outside the .app-main window */
   margin: 0;
-  display: flex;
-  justify-content: center;
-  text-align: center;
-  align-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-  padding-top: 20px; /* Added padding for global layout */
+  padding: 0; /* Removed display:flex, justify-content, align-items, min-height, padding-top */
+  height: 100%;
+  overflow: hidden;
+  text-align: center; /* Kept for now */
+  min-width: 320px; /* Kept min-width */
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -133,14 +136,17 @@ select:focus {
 .app-main {
   display: flex;
   flex-direction: column;
-  align-items: center; /* This centers children of .app-main, like user-header, dashboard-layout */
-  justify-content: flex-start;
-  min-height: 100vh;
+  align-items: center; /* This centers children of .app-main, like user-header, dashboard-layout - kept as per self-correction */
+  justify-content: flex-start; /* Keep if header is at top, content below */
   width:100%; /* Ensure it takes full width */
+  height: 100vh; /* Or 100% if body/html are 100% - using 100vh for full viewport */
   background-color: var(--primary-bg-color); /* Changed from #222 */
-  padding-top: 10px;
-  margin: 0; /* Centered by body's flex properties */
-  min-height: 0; /* Override previous min-height: 100vh */
+  margin: 0;
+  overflow: hidden; /* Key change: prevent .app-main itself from scrolling */
+  box-sizing: border-box; /* Add for consistent padding behavior if padding is re-added */
+  /* padding-top: 10px; removed */
+  /* min-height: 0; removed */
+  /* min-height: 100vh; original presence of this implies height:100vh is desired */
 }
 
 .user-header {
