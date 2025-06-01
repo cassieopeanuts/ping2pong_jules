@@ -178,9 +178,17 @@
               paddle2Y = liveGame.player_2_paddle ?? (canvasHeight / 2 - PADDLE_HEIGHT / 2);
               ball.x = liveGame.ball_x ?? (canvasWidth / 2);
               ball.y = liveGame.ball_y ?? (canvasHeight / 2);
-              ball.dx = 5 * (Math.random() > 0.5 ? 1 : -1);
-              ball.dy = 5 * (Math.random() > 0.5 ? 1 : -1);
-              console.log("[PongGame initializeGame] Initialized positions.");
+
+              if (isPlayer1) {
+                ball.dx = 5 * (Math.random() > 0.5 ? 1 : -1);
+                ball.dy = 5 * (Math.random() > 0.5 ? 1 : -1);
+                console.log("[PongGame initializeGame] Player 1 initialized ball position and velocity.");
+              } else {
+                // Player 2 waits for ball updates from Player 1 for velocity
+                ball.dx = 0;
+                ball.dy = 0;
+                console.log("[PongGame initializeGame] Player 2 initialized ball position (velocity set to 0, awaiting P1 update).");
+              }
           }
 
           // Start the game loop and listeners
@@ -256,9 +264,12 @@
     lastPaddleUpdate = now; // Update timestamp of last sent signal
 
     // Prepare payload matching the backend's PaddleUpdatePayload struct
+    const currentPaddleY = isPlayer1 ? paddle1Y : paddle2Y;
+    const relativeY = canvasHeight > 0 ? currentPaddleY / canvasHeight : 0.5; // Default to center if canvasHeight is 0
+
     const payload = {
         game_id: gameId, // The original ActionHash identifying the game
-        paddle_y: Math.round(isPlayer1 ? paddle1Y : paddle2Y) // Send the current Y position, rounded
+        relative_paddle_y: relativeY
     };
 
     try {
@@ -279,12 +290,15 @@
     lastBallUpdate = now; // Update timestamp
 
     // Prepare payload matching the backend's BallUpdatePayload struct
+    const relativeX = canvasWidth > 0 ? ball.x / canvasWidth : 0.5;
+    const relativeY = canvasHeight > 0 ? ball.y / canvasHeight : 0.5;
+
     const payload = {
         game_id: gameId, // The original ActionHash identifying the game
-        ball_x: Math.round(ball.x),
-        ball_y: Math.round(ball.y),
-        ball_dx: Math.round(ball.dx), // Assuming backend expects i32
-        ball_dy: Math.round(ball.dy)  // Assuming backend expects i32
+        relative_ball_x: relativeX,
+        relative_ball_y: relativeY,
+        ball_dx: Math.round(ball.dx), // dx/dy are still absolute
+        ball_dy: Math.round(ball.dy)
     };
 
     try {
@@ -329,15 +343,18 @@
         switch (s.type) {
           case "PaddleUpdate":
             if (encodeHashToBase64(s.player) !== meB64) {
-              if (isPlayer1) paddle2Y = s.paddle_y;
-              else           paddle1Y = s.paddle_y;
+              const absoluteY = s.relative_paddle_y * canvasHeight;
+              if (isPlayer1) paddle2Y = absoluteY;
+              else           paddle1Y = absoluteY;
             }
             break;
 
           case "BallUpdate":
             if (!isPlayer1) {
-              ball.x = s.ball_x; ball.y = s.ball_y;
-              ball.dx = s.ball_dx; ball.dy = s.ball_dy;
+              ball.x = s.relative_ball_x * canvasWidth;
+              ball.y = s.relative_ball_y * canvasHeight;
+              ball.dx = s.ball_dx; // dx/dy are still absolute
+              ball.dy = s.ball_dy;
             }
             break;
 
