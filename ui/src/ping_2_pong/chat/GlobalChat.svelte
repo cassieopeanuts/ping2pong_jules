@@ -167,4 +167,31 @@
    </form>
 </div>
 
-<!-- The <style> block has been removed entirely. -->
+<style>
+  h4 {
+    font-size: 1.25rem; /* 20px */
+    /* Consider line-height if it looks off, global h4 line-height is not set in index.css directly, inherits from h1,h2,h3 which is 1.3 for h3 */
+    line-height: 1.3;
+  }
+
+  .chat-messages-placeholder p {
+    font-size: 0.75rem; /* 12px */
+    line-height: 1.3; /* Adjusted for better readability with 'Press Start 2P' */
+    word-wrap: break-word; /* Ensure long messages without spaces wrap */
+    overflow-wrap: break-word; /* Modern equivalent for word-wrap */
+  }
+
+  .chat-messages-placeholder .sender {
+    /* font-size is inherited from p, which is now 0.75rem */
+    /* No specific font-size change needed here unless it should be different from message content */
+  }
+
+  .chat-timestamp {
+    font-size: 0.75rem; /* 12px, same as chat message p, differentiated by color */
+    /* display: inline-block; */ /* Ensure it flows with text but can have margin if needed */
+    /* margin-left: 0.5rem; */ /* Re-evaluate if needed, index.css had 8px */
+  }
+
+  /* Input and button will inherit 1em (16px) from global styles, which is fine. */
+  /* Error message will inherit 1em (16px) from global .error-message style, which is fine. */
+</style>

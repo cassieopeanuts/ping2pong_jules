@@ -133,12 +133,14 @@
   .leaderboard h3 {
     color: var(--primary-text-color); /* Ensure heading uses theme color */
     margin-bottom: 1rem;
+    font-size: 1.25rem; /* 20px. Overrides global h3 1.8em (28.8px) */
+    line-height: 1.2;   /* Adjust line height */
   }
   table {
     width: 100%;
     border-collapse: collapse; 
     margin-top: 1rem;
-    font-size: 0.9em; /* Slightly smaller font for table data */
+    font-size: 0.75rem; /* 12px. Adjusted from 0.9em (14.4px) for 'Press Start 2P' */
   }
   th, td {
     border: 2px solid var(--border-color); 
@@ -156,5 +158,14 @@
   /* Ensure fallback paragraph text is also themed if needed */
   .leaderboard > p:not(.loading-message):not(.error-message) {
     color: var(--text-muted-color);
+    /* font-size is 1em (16px) from global <p> style, which is fine */
   }
+
+  /* Override for .loading-message specifically within leaderboard context if needed */
+  .leaderboard :global(.loading-message) {
+    /* Using :global as .loading-message is defined in index.css */
+    /* Alternatively, just define .loading-message here if it should be unique to leaderboard */
+    font-size: 1rem; /* 16px. Global .loading-message is 1.2em (19.2px) */
+  }
+  /* .error-message already uses 1em (16px) globally, which is fine */
 </style>

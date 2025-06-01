@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
 /* Global styles */
 :root {
   --primary-bg-color: #000000;
@@ -27,7 +29,8 @@
 }
 
 body {
-  font-family: var(--font-family);
+  font-family: 'Press Start 2P', monospace; /* Monospace is a good fallback for 8-bit fonts */
+  /* font-family: var(--font-family); */ /* Original line, now superseded by direct application */
   line-height: 1.6;
   font-weight: 400;
   color: var(--secondary-text-color);
@@ -448,6 +451,27 @@ select:focus {
     width: 90%;
     padding: 1.5rem;
   }
+}
+
+button,
+input,
+select,
+textarea,
+p,
+div,
+span,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+label,
+td,
+th,
+li,
+a {
+  font-family: inherit; /* This will make them inherit from the body */
 }
 
 @media (max-width: 480px) {
