@@ -8,35 +8,42 @@ use ping_2_pong_integrity::Game; // Assuming Game is also directly available
 // Maximum allowed score points.
 const MAX_POINTS: u32 = 10000; // Keep high for flexibility, game logic enforces 10
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CreateScoreInput {
+    pub game_id: ActionHash,
+    pub player: AgentPubKey,
+    pub player_points: u32,
+}
+
 #[hdk_extern]
-pub fn create_score(score_input: Score) -> ExternResult<Record> { // Renamed 'score' to 'score_input' for clarity with new var 'score'
-    debug!("[score.rs] create_score: Called with input relevant parts: game_id {:?}, player {:?}, points {:?}", score_input.game_id, score_input.player, score_input.player_points);
+pub fn create_score(input: CreateScoreInput) -> ExternResult<Record> {
+    debug!("[score.rs] create_score: Called with input: {:?}", input);
 
     // --- Validation ---
     // Ensure the game_id corresponds to an actual Game entry
     // Note: game_id in Score struct should be the original ActionHash of the game creation
-    let game_action_hash = get_game_hash_by_id(&score_input.game_id)?
-        .ok_or(wasm_error!(WasmErrorInner::Guest(format!("Game ID does not exist: {}", score_input.game_id))))?;
+    let game_action_hash = get_game_hash_by_id(&input.game_id)?
+        .ok_or(wasm_error!(WasmErrorInner::Guest(format!("Game ID does not exist: {}", input.game_id))))?;
 
     // Fetch the *latest* game state record to check status
-    debug!("[score.rs] create_score: Fetching game record for game_id: {:?}", score_input.game_id);
+    debug!("[score.rs] create_score: Fetching game record for game_id: {:?}", input.game_id);
     match crate::game::get_latest_game(game_action_hash.clone()) { // game_action_hash is the original_game_hash needed by get_latest_game
         Ok(Some(game_record)) => {
             match game_record.entry().to_app_option::<ping_2_pong_integrity::Game>() {
                 Ok(Some(game_entry)) => {
-                    debug!("[score.rs] create_score: For game_id {:?}, current game status is: {:?}", score_input.game_id, game_entry.game_status);
+                    debug!("[score.rs] create_score: For game_id {:?}, current game status is: {:?}", input.game_id, game_entry.game_status);
                     if game_entry.game_status != ping_2_pong_integrity::game::GameStatus::Finished {
-                        debug!("[score.rs] create_score: WARNING - Attempting to create score for a game (id: {:?}) not in 'Finished' state. Actual status: {:?}", score_input.game_id, game_entry.game_status);
+                        debug!("[score.rs] create_score: WARNING - Attempting to create score for a game (id: {:?}) not in 'Finished' state. Actual status: {:?}", input.game_id, game_entry.game_status);
                         // Note: Original code returns error here, which is good. This log is just an additional warning.
                         // The original error will be hit below if this condition is true.
                     }
                 }
-                Err(e) => debug!("[score.rs] create_score: Error deserializing game entry for game_id {:?}: {:?}", score_input.game_id, e),
-                Ok(None) => debug!("[score.rs] create_score: Game entry data not found for game_id {:?}", score_input.game_id),
+                Err(e) => debug!("[score.rs] create_score: Error deserializing game entry for game_id {:?}: {:?}", input.game_id, e),
+                Ok(None) => debug!("[score.rs] create_score: Game entry data not found for game_id {:?}", input.game_id),
             }
         }
-        Err(e) => debug!("[score.rs] create_score: Error fetching game record for game_id {:?}: {:?}", score_input.game_id, e),
-        Ok(None) => debug!("[score.rs] create_score: No game record found for game_id {:?}", score_input.game_id),
+        Err(e) => debug!("[score.rs] create_score: Error fetching game record for game_id {:?}: {:?}", input.game_id, e),
+        Ok(None) => debug!("[score.rs] create_score: No game record found for game_id {:?}", input.game_id),
     }
 
     // Re-fetch for actual validation logic (original code structure)
@@ -54,13 +61,13 @@ pub fn create_score(score_input: Score) -> ExternResult<Record> { // Renamed 'sc
     }
 
     // Ensure the score is being assigned to a player who was actually in the game.
-    if score_input.player != game_for_validation.player_1 && game_for_validation.player_2.as_ref() != Some(&score_input.player) {
+    if input.player != game_for_validation.player_1 && game_for_validation.player_2.as_ref() != Some(&input.player) {
         return Err(wasm_error!(WasmErrorInner::Guest(
             "Score must be assigned to a player who participated in the game".into()
         )));
     }
     // Corrected the second instance of the check to use the correct variable names
-    if score_input.player != game_for_validation.player_1 && game_for_validation.player_2.as_ref() != Some(&score_input.player) {
+    if input.player != game_for_validation.player_1 && game_for_validation.player_2.as_ref() != Some(&input.player) {
         return Err(wasm_error!(WasmErrorInner::Guest(
             "Score must be assigned to a player who participated in the game (repeated check with correct vars)".into()
         )));
@@ -75,19 +82,24 @@ pub fn create_score(score_input: Score) -> ExternResult<Record> { // Renamed 'sc
 
 
     // Validate that the score points are within a reasonable range.
-    if score_input.player_points > MAX_POINTS { // MAX_POINTS is high, maybe check against game win condition?
-        warn!("Score points {} exceed MAX_POINTS {}", score_input.player_points, MAX_POINTS);
+    if input.player_points > MAX_POINTS { // MAX_POINTS is high, maybe check against game win condition?
+        warn!("Score points {} exceed MAX_POINTS {}", input.player_points, MAX_POINTS);
         // Allow high scores for now, UI/game logic should enforce game rules like first to 10.
         // return Err(wasm_error!(WasmErrorInner::Guest("Player points exceed the maximum allowed".into())));
     }
-     if score_input.player_points > 100 { // Add a more reasonable sanity check
-         warn!("Recorded score {} seems high.", score_input.player_points);
+     if input.player_points > 100 { // Add a more reasonable sanity check
+         warn!("Recorded score {} seems high.", input.player_points);
      }
      // --- End Validation ---
 
 
     // Create the Score entry.
-    let score_to_create = score_input.clone(); // Use the cloned input for creation
+    let score_to_create = Score {
+        game_id: input.game_id.clone(),
+        player: input.player.clone(),
+        player_points: input.player_points,
+        created_at: sys_time()?,
+    };
     let score_action_hash = match create_entry(&EntryTypes::Score(score_to_create)) {
         Ok(hash) => {
             debug!("[score.rs] create_score: create_entry for Score successful, action hash: {:?}", hash);
@@ -102,7 +114,7 @@ pub fn create_score(score_input: Score) -> ExternResult<Record> { // Renamed 'sc
     // Link the Score action hash from the Player's pubkey.
     // Error handling for create_link can be added if necessary, for now assuming ? operator is sufficient
     create_link(
-        score_input.player.clone(),
+        input.player.clone(),
         score_action_hash.clone(),
         LinkTypes::PlayerToScores, // Changed from ScoreToPlayer based on convention BaseToTargets
         (),
@@ -110,7 +122,7 @@ pub fn create_score(score_input: Score) -> ExternResult<Record> { // Renamed 'sc
 
     // Link the Score action hash from the original game's action hash.
     create_link(
-        score_input.game_id.clone(), // Base is the original game action hash
+        input.game_id.clone(), // Base is the original game action hash
         score_action_hash.clone(),
         LinkTypes::GameToScores, // Use a more descriptive name if possible, or reuse ScoreUpdates? Let's define GameToScores
         (),
