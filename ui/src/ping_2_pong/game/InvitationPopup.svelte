@@ -32,3 +32,24 @@
       <button on:click={declineInvitation}>Decline</button>
     </div>
   </div>
+
+<style>
+  /* Styles from index.css are already applied via classes like .invitation-popup */
+  /* We only need to override specific font sizes if the defaults don't look good. */
+
+  h3 {
+    font-size: 1.25rem; /* 20px. Default in index.css for .invitation-popup h3 is 1.8em (28.8px) via global h3 */
+    line-height: 1.2;   /* Global h3 line-height is 1.3, this makes it a bit tighter */
+  }
+
+  p { /* This targets the main descriptive paragraph */
+    font-size: 1rem;    /* 16px. Default in index.css for .invitation-popup p is 0.95em (15.2px) */
+    line-height: 1.3;   /* Global p line-height is 1.6, this is tighter for the popup */
+                        /* Note: .error-message already has 1em (16px) from global styles, which is fine. */
+  }
+
+  button {
+    font-size: 1rem;    /* 16px. Default in index.css for .invitation-popup button is 0.95em (15.2px) */
+    /* Padding will scale based on this new font size due to em units in global style */
+  }
+</style>

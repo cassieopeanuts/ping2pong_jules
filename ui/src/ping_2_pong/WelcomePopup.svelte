@@ -61,3 +61,14 @@
     {/if}
   </div>
 </div>
+
+<style>
+  h2 {
+    font-size: 1.5rem; /* Default 16px * 1.5 = 24px. Adjusted from global 2.2em (35.2px) */
+    line-height: 1.2; /* Ensure consistent line height for the new font size */
+    /* The global h2 style in index.css has line-height: 1.2, so this might be redundant if not changing it,
+       but explicitly setting it here ensures it's considered for this specific component's h2. */
+  }
+  /* Other elements like input, button, p.error-message already have 1rem/1em font-size via index.css,
+     which should be acceptable for 'Press Start 2P'. */
+</style>

@@ -231,6 +231,8 @@
     margin-top: 0;
     color: var(--primary-text-color); /* Was orange */
     font-weight: bold; /* Kept bold as it's a heading style */
+    font-size: 1.25rem; /* 20px. Global h2 is 2.2em (35.2px) */
+    line-height: 1.2;
   }
   .online-users ul {
     list-style: none;
@@ -240,6 +242,8 @@
     overflow-y: auto; /* Kept as is, functional style */
   }
   .online-users li {
+    font-size: 0.875rem; /* 14px. Base for list items */
+    line-height: 1.4;
     margin: 0.6rem 0;
     display: flex;
     justify-content: space-between;
@@ -252,10 +256,11 @@
   }
   .error { /* For generic error text within the component, not necessarily .error-message class */
     color: var(--error-text-color); /* Was #ff8080, now orange via variable */
-    font-size: 0.9em; /* Kept as is */
+    /* font-size removed, will inherit from .lobby p or other parent */
   }
   .status {
-    font-size: 0.85em; /* Kept as is */
+    font-size: 0.75rem; /* 12px. Explicit size for status text */
+    line-height: 1.2;
     margin-left: 0.5em; /* Kept as is */
     color: var(--text-muted-color); /* Was #aaa */
   }
@@ -267,14 +272,16 @@
   }
 
   /* Button styles within Lobby - these are specific and override global button styles if needed, or complement them */
-  /* It seems these buttons are smaller than global, so some specific styling is fine */
   .online-users button { /* Targeting invite buttons */
-    font-size: 0.9rem; /* Adjusted from 1rem for smaller context if desired, or keep global */
-    padding: 0.4rem 0.8rem;
-    border: 1px solid transparent; /* Consistent with global */
+    font-size: 0.75rem; /* 12px. Made smaller for list context */
+    padding: 0.4rem 0.8rem; /* Padding kept, will scale with font if em based, but here it's fixed rem */
+    /* border: 1px solid transparent; */ /* Old border style */
+    border-width: 2px;
+    border-style: solid;
+    border-color: var(--primary-text-color);
     background-color: var(--button-bg-color);
     color: var(--button-text-color);
-    border-radius: 6px; /* Consistent with global */
+    /* border-radius: 6px; */ /* Removed for blocky style */
     cursor: pointer;
     transition: background-color 0.25s, border-color 0.25s; /* Consistent with global */
   }
@@ -298,14 +305,21 @@
   /* Styles for status/error messages text (not the .error-message class block) */
   /* p.error is covered by .error above if it's just text color */
   /* For other p tags that display status */
-  .lobby p:not(.error) { /* More specific selector for non-error status messages */
-    color: var(--text-muted-color); /* Was #ccc */
+  .lobby p { /* General paragraphs in lobby, including status and "No other users" */
+    font-size: 0.875rem; /* 14px */
+    line-height: 1.4;
+    color: var(--text-muted-color); /* Default for these paragraphs */
   }
 
-  /* Ensure that if a p tag has class 'error', it uses the .error style */
+  /* Ensure that if a p tag has class 'error', it primarily uses the .error class for color */
   .lobby p.error {
-    color: var(--error-text-color); /* Explicitly ensure error color */
-    font-size: 0.9em; /* From original .error */
+    color: var(--error-text-color); /* Explicitly ensure error color from .error class */
+    /* font-size will be 0.875rem from the .lobby p rule above */
   }
 
+  /* Override for .loading-message specifically within lobby context */
+  .lobby :global(.loading-message) {
+    font-size: 1rem; /* 16px. Global .loading-message is 1.2em (19.2px) */
+  }
+  /* .error-message class from index.css will apply its own styles (1em font size), which is fine. */
 </style>

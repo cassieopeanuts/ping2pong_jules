@@ -23,8 +23,8 @@
   const appClientContext = getContext<ClientContext>(clientContext);
 
   // Game Constants
-  const CANVAS_WIDTH = 800;
-  const CANVAS_HEIGHT = 600;
+  const CANVAS_WIDTH = 640;
+  const CANVAS_HEIGHT = 480;
   const PADDLE_WIDTH = 10;
   const PADDLE_HEIGHT = 100;
   const BALL_RADIUS = 10;
@@ -583,7 +583,7 @@
     // Display Loading or Error message if game state isn't loaded yet
     // Use loadingMsg first, then errorMsg if initialization failed
     if (!liveGame && !gameOver) { // Only show loading/error if game hasn't started or finished
-        ctx.fillStyle = "#000000"; /* Black text on orange background */ ctx.font = "30px 'Press Start 2P', monospace"; ctx.textAlign = "center";
+        ctx.fillStyle = "#000000"; /* Black text on orange background */ ctx.font = "24px 'Press Start 2P', monospace"; ctx.textAlign = "center"; /* Adjusted from 30px */
         ctx.fillText(errorMsg || loadingMsg || "Loading...", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
         // Keep requesting frames only if still loading (no error and not game over)
         if (!errorMsg && loadingMsg) animationFrameId = requestAnimationFrame(draw);
@@ -607,9 +607,9 @@
     // Display if the gameOver flag is true
     if (gameOver) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT); // Dim background (semi-transparent black still fine)
-        ctx.fillStyle = "#000000"; /* Black text */ ctx.font = "50px 'Press Start 2P', monospace"; ctx.textAlign = "center";
+        ctx.fillStyle = "#000000"; /* Black text */ ctx.font = "48px 'Press Start 2P', monospace"; ctx.textAlign = "center"; /* Adjusted from 50px */
         ctx.fillText("GAME OVER", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 50);
-        ctx.font = "30px 'Press Start 2P', monospace";
+        ctx.font = "24px 'Press Start 2P', monospace"; /* Adjusted from 30px */
          // Display winner's name
          if (winner && liveGame) {
              const winnerName = encodeHashToBase64(winner) === encodeHashToBase64(liveGame.player_1) ? "Player 1" : "Player 2";
@@ -629,7 +629,7 @@
         animationFrameId = requestAnimationFrame(draw); // Continue loop
     } else if (liveGame && liveGame.game_status === 'Waiting') {
         // If somehow we are drawing but status is still Waiting, show message and wait
-        ctx.fillStyle = "#888"; ctx.font = "24px Arial"; ctx.textAlign = "center";
+        ctx.fillStyle = "#000000"; ctx.font = "24px 'Press Start 2P', monospace"; ctx.textAlign = "center"; /* Changed font, kept 24px, changed color */
         ctx.fillText("Waiting for game to start...", CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         animationFrameId = requestAnimationFrame(draw); // Continue loop while waiting
     }
@@ -701,7 +701,7 @@
     padding: 0 15px; /* Padding on the sides */
     box-sizing: border-box; /* Include padding in width calculation */
     color: var(--primary-text-color); /* Was orange */
-    font-size: 0.9rem;
+    font-size: 0.75rem; /* 12px. Adjusted from 0.9rem (14.4px) */
     font-weight: bold; /* Keep bold for info emphasis */
     z-index: 1; /* Ensure it's above the canvas */
     pointer-events: none; /* Prevent interaction */
@@ -721,7 +721,7 @@
     z-index: 10;
   }
   .exit-game-button button {
-    font-size: 0.9rem; /* Kept smaller size */
+    font-size: 0.75rem; /* 12px. Adjusted from 0.9rem (14.4px) */
     padding: 0.4rem 0.8rem; /* Kept smaller padding */
     background-color: var(--button-bg-color);
     color: var(--button-text-color);
@@ -743,7 +743,7 @@
     z-index: 10;
   }
   .game-over-menu button {
-    font-size: 1.2rem; /* Kept larger size */
+    font-size: 1.25rem; /* 20px. Adjusted from 1.2rem (19.2px) */
     padding: 0.8rem 1.5rem; /* Kept larger padding */
     background-color: var(--button-bg-color);
     color: var(--button-text-color);
