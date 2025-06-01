@@ -23,23 +23,28 @@
   const appClientContext = getContext<ClientContext>(clientContext);
 
   // Game Constants
-  const CANVAS_WIDTH = 640;
-  const CANVAS_HEIGHT = 480;
+  // const CANVAS_WIDTH = 640; // Removed
+  // const CANVAS_HEIGHT = 480; // Removed
   const PADDLE_WIDTH = 10;
   const PADDLE_HEIGHT = 100;
   const BALL_RADIUS = 10;
   const WINNING_SCORE = 10;
-  const PADDLE_SPEED = 18;
+  const PADDLE_SPEED = 25;
   const UPDATE_INTERVAL = 50; // ms interval for sending signal updates
+
+  // Reactive Canvas Dimensions
+  let canvasWidth: number = 640; // Initial default, will be updated
+  let canvasHeight: number = 480; // Initial default, will be updated
+  let gameContainerEl: HTMLDivElement; // To bind to the .game-container div
 
   // Component State
   let gameRecord: Record | undefined; // Stores the latest fetched Holochain record for the game
   let liveGame: Game | undefined; // Stores the deserialized Game data from the entry (set only when ready)
   let isPlayer1 = false; // Flag indicating if the current user is Player 1
   let isPlayer2 = false; // Flag indicating if the current user is Player 2
-  let paddle1Y = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2; // Player 1 paddle Y position
-  let paddle2Y = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2; // Player 2 paddle Y position
-  let ball = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2, dx: 5, dy: 5 }; // Ball position and velocity
+  let paddle1Y = canvasHeight / 2 - PADDLE_HEIGHT / 2; // Player 1 paddle Y position
+  let paddle2Y = canvasHeight / 2 - PADDLE_HEIGHT / 2; // Player 2 paddle Y position
+  let ball = { x: canvasWidth / 2, y: canvasHeight / 2, dx: 5, dy: 5 }; // Ball position and velocity
   let score = { player1: 0, player2: 0 }; // Current scores
   let gameOver = false; // Flag indicating if the game has ended
   let winner: AgentPubKey | null = null; // Stores the winner's public key if game is over
@@ -169,10 +174,10 @@
 
           // Initialize positions (only if score is 0)
           if (score.player1 === 0 && score.player2 === 0) {
-              paddle1Y = liveGame.player_1_paddle ?? (CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2);
-              paddle2Y = liveGame.player_2_paddle ?? (CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2);
-              ball.x = liveGame.ball_x ?? (CANVAS_WIDTH / 2);
-              ball.y = liveGame.ball_y ?? (CANVAS_HEIGHT / 2);
+              paddle1Y = liveGame.player_1_paddle ?? (canvasHeight / 2 - PADDLE_HEIGHT / 2);
+              paddle2Y = liveGame.player_2_paddle ?? (canvasHeight / 2 - PADDLE_HEIGHT / 2);
+              ball.x = liveGame.ball_x ?? (canvasWidth / 2);
+              ball.y = liveGame.ball_y ?? (canvasHeight / 2);
               ball.dx = 5 * (Math.random() > 0.5 ? 1 : -1);
               ball.dy = 5 * (Math.random() > 0.5 ? 1 : -1);
               console.log("[PongGame initializeGame] Initialized positions.");
@@ -226,7 +231,7 @@
         paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED); // Move up, clamp at top
         moved = true;
       } else if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") {
-        paddle1Y = Math.min(CANVAS_HEIGHT - PADDLE_HEIGHT, paddle1Y + PADDLE_SPEED); // Move down, clamp at bottom
+        paddle1Y = Math.min(canvasHeight - PADDLE_HEIGHT, paddle1Y + PADDLE_SPEED); // Move down, clamp at bottom
         moved = true;
       }
     // Player 2 controls
@@ -235,7 +240,7 @@
         paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED); // Move up, clamp at top
         moved = true;
       } else if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") {
-        paddle2Y = Math.min(CANVAS_HEIGHT - PADDLE_HEIGHT, paddle2Y + PADDLE_SPEED); // Move down, clamp at bottom
+        paddle2Y = Math.min(canvasHeight - PADDLE_HEIGHT, paddle2Y + PADDLE_SPEED); // Move down, clamp at bottom
         moved = true;
       }
     }
@@ -364,9 +369,9 @@
     ball.y += ball.dy;
 
     // Check for collisions with top/bottom walls
-    if (ball.y + BALL_RADIUS > CANVAS_HEIGHT || ball.y - BALL_RADIUS < 0) {
+    if (ball.y + BALL_RADIUS > canvasHeight || ball.y - BALL_RADIUS < 0) {
       ball.dy = -ball.dy; // Reverse vertical velocity
-      ball.y = Math.max(BALL_RADIUS, Math.min(CANVAS_HEIGHT - BALL_RADIUS, ball.y)); // Clamp position
+      ball.y = Math.max(BALL_RADIUS, Math.min(canvasHeight - BALL_RADIUS, ball.y)); // Clamp position
     }
 
     // Check for collisions with paddles
@@ -379,9 +384,9 @@
         hitPaddle = true;
     }
     // Player 2 paddle collision logic
-    else if (ball.dx > 0 && ball.x + BALL_RADIUS > CANVAS_WIDTH - PADDLE_WIDTH && ball.x < CANVAS_WIDTH - BALL_RADIUS && ball.y > paddle2Y && ball.y < paddle2Y + PADDLE_HEIGHT) {
+    else if (ball.dx > 0 && ball.x + BALL_RADIUS > canvasWidth - PADDLE_WIDTH && ball.x < canvasWidth - BALL_RADIUS && ball.y > paddle2Y && ball.y < paddle2Y + PADDLE_HEIGHT) {
         ball.dx = -ball.dx * 1.05; // Reverse horizontal velocity, increase speed
-        ball.x = CANVAS_WIDTH - PADDLE_WIDTH - BALL_RADIUS; // Reposition ball
+        ball.x = canvasWidth - PADDLE_WIDTH - BALL_RADIUS; // Reposition ball
         ball.dy = (ball.y - (paddle2Y + PADDLE_HEIGHT / 2)) * 0.35; // Add vertical angle
         hitPaddle = true;
     }
@@ -390,7 +395,7 @@
     let scored = false;
     if (ball.x + BALL_RADIUS < 0) {          // P2 scores
       score.player2++; scored = true; sendScoreUpdate();
-    } else if (ball.x - BALL_RADIUS > CANVAS_WIDTH) { // P1 scores
+    } else if (ball.x - BALL_RADIUS > canvasWidth) { // P1 scores
       score.player1++; scored = true; sendScoreUpdate();
     }
 
@@ -405,8 +410,8 @@
         handleLocalGameOver(); // Trigger backend updates and game over signal
       } else {
         // If game not over, reset ball for the next point
-        ball.x = CANVAS_WIDTH / 2;
-        ball.y = CANVAS_HEIGHT / 2;
+        ball.x = canvasWidth / 2;
+        ball.y = canvasHeight / 2;
         ball.dx = 5 * (score.player1 > score.player2 ? -1 : 1); // Serve towards the player who lost the point
         ball.dy = 5 * (Math.random() > 0.5 ? 1 : -1); // Random vertical serve direction
         lastBallUpdate = 0; // Reset throttle timer for immediate update
@@ -575,16 +580,16 @@
 
     // --- Drawing ---
     // Clear canvas and draw background/midline
-    ctx.fillStyle = "#FFA500"; /* Orange, from --primary-text-color */ ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.fillStyle = "#FFA500"; /* Orange, from --primary-text-color */ ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     ctx.strokeStyle = "#000000"; /* Black */ ctx.lineWidth = 4; ctx.beginPath();
-    ctx.setLineDash([10, 10]); ctx.moveTo(CANVAS_WIDTH / 2, 0); ctx.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT);
+    ctx.setLineDash([10, 10]); ctx.moveTo(canvasWidth / 2, 0); ctx.lineTo(canvasWidth / 2, canvasHeight);
     ctx.stroke(); ctx.setLineDash([]); // Reset line dash style
 
     // Display Loading or Error message if game state isn't loaded yet
     // Use loadingMsg first, then errorMsg if initialization failed
     if (!liveGame && !gameOver) { // Only show loading/error if game hasn't started or finished
         ctx.fillStyle = "#000000"; /* Black text on orange background */ ctx.font = "24px 'Press Start 2P', monospace"; ctx.textAlign = "center"; /* Adjusted from 30px */
-        ctx.fillText(errorMsg || loadingMsg || "Loading...", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+        ctx.fillText(errorMsg || loadingMsg || "Loading...", canvasWidth / 2, canvasHeight / 2);
         // Keep requesting frames only if still loading (no error and not game over)
         if (!errorMsg && loadingMsg) animationFrameId = requestAnimationFrame(draw);
         return; // Don't draw game elements if not loaded/ready
@@ -594,30 +599,30 @@
     if (liveGame) {
         ctx.fillStyle = "#000000"; /* Black */
         ctx.fillRect(0, paddle1Y, PADDLE_WIDTH, PADDLE_HEIGHT); // Player 1 Paddle (left)
-        ctx.fillRect(CANVAS_WIDTH - PADDLE_WIDTH, paddle2Y, PADDLE_WIDTH, PADDLE_HEIGHT); // Player 2 Paddle (right)
+        ctx.fillRect(canvasWidth - PADDLE_WIDTH, paddle2Y, PADDLE_WIDTH, PADDLE_HEIGHT); // Player 2 Paddle (right)
         ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, 2 * Math.PI); ctx.fill(); // Ball
 
         // Draw Scores
         ctx.font = "40px 'Press Start 2P', monospace"; ctx.textAlign = "center"; // fillStyle is already black
-        ctx.fillText(score.player1.toString(), CANVAS_WIDTH / 4, 60); // Player 1 Score
-        ctx.fillText(score.player2.toString(), (3 * CANVAS_WIDTH) / 4, 60); // Player 2 Score
+        ctx.fillText(score.player1.toString(), canvasWidth / 4, 60); // Player 1 Score
+        ctx.fillText(score.player2.toString(), (3 * canvasWidth) / 4, 60); // Player 2 Score
     }
 
     // --- Game Over Overlay ---
     // Display if the gameOver flag is true
     if (gameOver) {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT); // Dim background (semi-transparent black still fine)
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; ctx.fillRect(0, 0, canvasWidth, canvasHeight); // Dim background (semi-transparent black still fine)
         ctx.fillStyle = "#000000"; /* Black text */ ctx.font = "48px 'Press Start 2P', monospace"; ctx.textAlign = "center"; /* Adjusted from 50px */
-        ctx.fillText("GAME OVER", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 50);
+        ctx.fillText("GAME OVER", canvasWidth / 2, canvasHeight / 2 - 50);
         ctx.font = "24px 'Press Start 2P', monospace"; /* Adjusted from 30px */
          // Display winner's name
          if (winner && liveGame) {
              const winnerName = encodeHashToBase64(winner) === encodeHashToBase64(liveGame.player_1) ? "Player 1" : "Player 2";
-             ctx.fillText(`${winnerName} Wins!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-         } else { ctx.fillText("Game Finished", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2); } // Fallback if no winner determined
+             ctx.fillText(`${winnerName} Wins!`, canvasWidth / 2, canvasHeight / 2);
+         } else { ctx.fillText("Game Finished", canvasWidth / 2, canvasHeight / 2); } // Fallback if no winner determined
          // Display final score
          ctx.font = "40px 'Press Start 2P', monospace";
-         ctx.fillText(`${score.player1} - ${score.player2}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
+         ctx.fillText(`${score.player1} - ${score.player2}`, canvasWidth / 2, canvasHeight / 2 + 50);
         // Stop the animation loop once the game over screen is drawn
         return;
     }
@@ -630,8 +635,30 @@
     } else if (liveGame && liveGame.game_status === 'Waiting') {
         // If somehow we are drawing but status is still Waiting, show message and wait
         ctx.fillStyle = "#000000"; ctx.font = "24px 'Press Start 2P', monospace"; ctx.textAlign = "center"; /* Changed font, kept 24px, changed color */
-        ctx.fillText("Waiting for game to start...", CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
+        ctx.fillText("Waiting for game to start...", canvasWidth / 2, canvasHeight / 2 - 50); // Centered a bit more
         animationFrameId = requestAnimationFrame(draw); // Continue loop while waiting
+    }
+  }
+
+  function resizeCanvas() {
+    if (!canvas) return;
+
+    const newWidth = canvas.clientWidth;
+    const newHeight = canvas.clientHeight;
+
+    canvasWidth = newWidth;
+    canvasHeight = newHeight;
+
+    canvas.width = newWidth;
+    canvas.height = newHeight;
+
+    // This might need more sophisticated logic if game is in progress
+    // For now, it re-centers paddles based on new height.
+    paddle1Y = canvasHeight / 2 - PADDLE_HEIGHT / 2;
+    paddle2Y = canvasHeight / 2 - PADDLE_HEIGHT / 2;
+
+    if (ctx) {
+      draw();
     }
   }
 
@@ -640,11 +667,13 @@
     client = await appClientContext.getClient(); // Initialize Holochain client
     if (canvas) {
         ctx = canvas.getContext("2d")!;
+        resizeCanvas(); // Set initial size and draw
+        window.addEventListener('resize', resizeCanvas);
     } else {
         console.error("Canvas element not found on mount.");
         errorMsg = "Failed to initialize canvas.";
         // Attempt to draw error even without game loop starting
-        if(ctx) draw();
+        if(ctx) draw(); // ctx might not be set here if canvas is null
         return; // Stop initialization if canvas fails
     }
     // Start the initialization process (which includes retries)
@@ -660,11 +689,12 @@
     cancelAnimationFrame(animationFrameId);
     window.removeEventListener("keydown", handleKeyDown);
     if (unsubscribeFromSignals) unsubscribeFromSignals(); // Unsubscribe from Holochain signals
+    window.removeEventListener('resize', resizeCanvas); // Add this
   });
 
 </script>
 
-<div class="game-container">
+<div class="game-container" bind:this={gameContainerEl}>
     {#if errorMsg && !ctx} <p class="error-message">Error: {errorMsg}</p> {/if}
 
     <div class="game-window">
@@ -673,7 +703,7 @@
             <div class="player player2">P2: {#if liveGame?.player_2}{truncatePubkey(liveGame.player_2)}{:else}Waiting...{/if}</div>
         </div>
 
-        <canvas bind:this={canvas} width={CANVAS_WIDTH} height={CANVAS_HEIGHT}></canvas>
+        <canvas bind:this={canvas}></canvas> <!-- Removed width/height attributes -->
 
         {#if gameOver}
             <div class="game-over-menu">
@@ -688,9 +718,22 @@
 </div>
 
 <style>
-  .game-container { display: flex; justify-content: center; align-items: center; flex-direction: column; padding-top: 20px; }
-  .error-message { color: red; margin-bottom: 10px; font-weight: bold; }
-  .game-window { position: relative; /* For positioning buttons */ }
+  .game-container {
+    width: 80%;
+    height: 80%;
+    position: relative;
+    display: flex; /* Added to help center .game-window if needed, though .game-window is 100% */
+    justify-content: center;
+    align-items: center;
+    /* padding-top: 20px; */ /* Removed, parent (.route-content-wrapper) has padding */
+  }
+  .error-message { color: red; margin-bottom: 10px; font-weight: bold; } /* This is for the {#if errorMsg && !ctx} only */
+
+  .game-window {
+    width: 100%;
+    height: 100%;
+    position: relative; /* For positioning buttons and canvas correctly */
+  }
   .players-info {
     position: absolute;
     top: -25px; /* Position above the canvas */
@@ -708,9 +751,11 @@
   }
   .player { background-color: rgba(0,0,0,0.6); padding: 3px 6px; border-radius: 4px; }
   canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
     background-color: var(--primary-text-color); /* Orange */
-    display: block; /* Remove extra space below canvas */
-    margin: 0 auto; /* Center canvas */
+    /* margin: 0 auto; */ /* No longer needed if .game-window handles centering/sizing */
     border: 2px solid var(--primary-bg-color); /* Thick black border */
     box-shadow: none; /* Removed glow effect */
   }
