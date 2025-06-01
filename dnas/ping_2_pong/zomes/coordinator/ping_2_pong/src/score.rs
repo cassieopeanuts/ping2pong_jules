@@ -59,9 +59,10 @@ pub fn create_score(score_input: Score) -> ExternResult<Record> { // Renamed 'sc
             "Score must be assigned to a player who participated in the game".into()
         )));
     }
-    if score.player != game.player_1 && game.player_2.as_ref() != Some(&score.player) {
+    // Corrected the second instance of the check to use the correct variable names
+    if score_input.player != game_for_validation.player_1 && game_for_validation.player_2.as_ref() != Some(&score_input.player) {
         return Err(wasm_error!(WasmErrorInner::Guest(
-            "Score must be assigned to a player who participated in the game".into()
+            "Score must be assigned to a player who participated in the game (repeated check with correct vars)".into()
         )));
     }
 
