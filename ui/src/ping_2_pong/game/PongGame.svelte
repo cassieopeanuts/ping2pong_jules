@@ -342,6 +342,10 @@
             break;
 
           case "GameOver":
+            // Ensure playerKey is defined before trying to use it for logging context
+            if (isPlayer2) { // Only log this detailed message if the current player is Player 2
+              console.log(`[PongGame Signal] Player 2 (invitee) received GameOver signal. Game ID: ${encodeHashToBase64(s.game_id)}, Winner: ${s.winner ? encodeHashToBase64(s.winner) : 'None'}, Signal: `, s);
+            }
             handleRemoteGameOver(
               s.winner ?? null as AgentPubKey|null
             );
@@ -473,12 +477,13 @@
             // Call the backend zome function to commit the update
             await client.callZome({ cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME, fn_name: "update_game", payload: updatePayload });
             console.log("Game status updated on DHT successfully.");
-       } catch (e: any) { 
-            console.error("CRITICAL: Error updating game status to Finished. Full error:", e); // Enhanced log
-            errorMsg = `Failed to finalize game status: ${e.data?.data || e.message || "Unknown error"}. Scores not saved.`;
+       } catch (e: any) {
+            console.error("CRITICAL: Error updating game status to Finished in handleLocalGameOver. Error:", e);
+            errorMsg = `Failed to finalize game status: ${e.data?.data || e.message || "Unknown error"}. Attempting to save scores anyway.`;
             // The errorMsg should be displayed by the draw() function.
-            return; // IMPORTANT: Stop further processing (like create_score)
+            // REMOVED return; to allow execution to continue
        }
+       console.log("[PongGame P1] Attempted to update game status to Finished.");
 
        // 2. Save Final Scores for both players on the DHT
        try {
@@ -500,11 +505,15 @@
                 await client.callZome({ cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME, fn_name: "create_score", payload: score2Payload });
            }
            console.log("Scores saved.");
-       } catch (e: any) { 
-           console.error("Error saving scores. Full error:", e); // Enhanced log
-           errorMsg = `Failed to save scores: ${e.data?.data || e.message || "Unknown error"}.`;
-           // No return here, as game status might have updated successfully.
+       } catch (e: any) {
+           console.error("Error saving scores in handleLocalGameOver. Error:", e);
+           if (errorMsg) { // If update_game already set an error
+               errorMsg += ` Additionally, failed to save scores: ${e.data?.data || e.message || "Unknown error"}.`;
+           } else { // If update_game succeeded
+               errorMsg = `Game status finalized, but failed to save scores: ${e.data?.data || e.message || "Unknown error"}.`;
+           }
        }
+       console.log("[PongGame P1] Attempted to save scores.");
 
        // 3. Send GameOver signal using the specific function
        try {
@@ -530,9 +539,17 @@
 
   // Handles game over triggered by receiving a GameOver signal from the opponent
   function handleRemoteGameOver(remoteWinner: AgentPubKey | null) {
+      // Log for Player 2 context at the beginning
+      if (isPlayer2) {
+        console.log(`[PongGame] Player 2 (invitee) executing handleRemoteGameOver. Winner: ${remoteWinner ? encodeHashToBase64(remoteWinner) : 'None'}. Current gameOver state: ${gameOver}`);
+      }
       if (gameOver) return; // Prevent processing if already game over
-      console.log("Handling remote game over signal...");
+      console.log("Handling remote game over signal..."); // General log for any player receiving it
       gameOver = true; // Set game over flag
+      // Log for Player 2 context after state update
+      if (isPlayer2) {
+        console.log(`[PongGame] Player 2 (invitee) gameOver state UPDATED to: ${gameOver}`);
+      }
       winner = remoteWinner; // Store the winner received from the signal
       // The UI will update in the next 'draw' call based on the 'gameOver' flag
   }

@@ -26,6 +26,7 @@
   import WelcomePopup from "./ping_2_pong/WelcomePopup.svelte";
   // import GlobalChat from "./ping_2_pong/chat/GlobalChat.svelte"; // REMOVED
   import Dashboard from "./ping_2_pong/game/Dashboard.svelte";
+  import type { Dashboard as DashboardType } from "./ping_2_pong/game/Dashboard.svelte"; // For instance binding
   import PongGame from "./ping_2_pong/game/PongGame.svelte";
   import StatisticsDashboard from "./ping_2_pong/game/StatisticsDashboard.svelte";
   import InvitationPopup from "./ping_2_pong/game/InvitationPopup.svelte"; // Adjust path if needed
@@ -40,6 +41,7 @@
   let presenceIntervalId: ReturnType<typeof setInterval> | undefined;
   let unsubscribeFromSignals: UnsubscribeFunction | undefined; // Use the locally defined type
   let invitationError: string | null = null; // Specific for invitation errors
+  let dashboardComponent: DashboardType; // Variable to hold Dashboard instance
 
   // Holochain Client Setup
   const appClientContext = {
@@ -245,7 +247,24 @@
       // console.log("[App.svelte exitGame] Exiting game..."); // Info
       currentGame.set(null);
       currentRoute.set("dashboard");
-      invitations.set([]);
+      invitations.set([]); // Clear any pending invitations
+
+      // Add this block to refresh leaderboard
+      if (dashboardComponent && typeof dashboardComponent.refreshLeaderboardData === 'function') {
+        // Use setTimeout to allow Svelte to render/update the dashboard component first
+        setTimeout(() => {
+          // Double check instance, as component might be destroyed if route change was too fast or something else happened
+          if (dashboardComponent && typeof dashboardComponent.refreshLeaderboardData === 'function') {
+            console.log("[App.svelte] exitGame: Attempting to refresh leaderboard data via Dashboard component.");
+            dashboardComponent.refreshLeaderboardData();
+          } else {
+            console.warn("[App.svelte] exitGame: Dashboard component or refreshLeaderboardData method not available after timeout.");
+          }
+        }, 0);
+      } else {
+        // This can happen if the Dashboard component wasn't rendered yet or `bind:this` hasn't updated `dashboardComponent`
+        console.warn("[App.svelte] exitGame: Dashboard component not immediately available for refresh request. This might be okay if the dashboard is about to be mounted.");
+      }
   }
 
 
@@ -324,7 +343,7 @@
     {/if}
 
     {#if route === "dashboard"}
-      <Dashboard on:join-game={handleJoinGame} />
+      <Dashboard on:join-game={handleJoinGame} bind:this={dashboardComponent} />
     {:else if route === "gameplay"}
        {#if currentPlayerProfile?.agentKey && gameId}
            <PongGame
@@ -339,7 +358,7 @@
     {:else if route === "statistics"}
       <StatisticsDashboard />
     {:else}
-       <Dashboard on:join-game={handleJoinGame} />
+       <Dashboard on:join-game={handleJoinGame} bind:this={dashboardComponent} />
        {() => { if (route !== 'dashboard') { console.warn(`Unknown route: ${route}, defaulting.`); setTimeout(() => currentRoute.set('dashboard'), 0); } return ''; }}
     {/if}
   </main>
