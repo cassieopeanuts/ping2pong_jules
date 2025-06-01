@@ -71,12 +71,12 @@ pub enum Signal {
     PaddleUpdate {
         game_id: ActionHash,
         player: AgentPubKey,
-        relative_paddle_y: f32, // Changed from paddle_y: u32
+        paddle_y: u32, // Reverted from relative_paddle_y: f32
     },
     BallUpdate {
         game_id: ActionHash,
-        relative_ball_x: f32, // Changed from ball_x: u32
-        relative_ball_y: f32, // Changed from ball_y: u32
+        ball_x: u32, // Reverted from relative_ball_x: f32
+        ball_y: u32, // Reverted from relative_ball_y: f32
         ball_dx: i32,
         ball_dy: i32,
     },
