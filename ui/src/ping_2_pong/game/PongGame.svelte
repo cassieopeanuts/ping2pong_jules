@@ -479,6 +479,7 @@
             console.log("Game status updated on DHT successfully.");
        } catch (e: any) {
             console.error("CRITICAL: Error updating game status to Finished in handleLocalGameOver. Error:", e);
+            console.error("Detailed zome error object from update_game:", JSON.stringify(e, Object.getOwnPropertyNames(e), 2));
             errorMsg = `Failed to finalize game status: ${e.data?.data || e.message || "Unknown error"}. Attempting to save scores anyway.`;
             // The errorMsg should be displayed by the draw() function.
             // REMOVED return; to allow execution to continue
@@ -507,6 +508,7 @@
            console.log("Scores saved.");
        } catch (e: any) {
            console.error("Error saving scores in handleLocalGameOver. Error:", e);
+           console.error("Detailed zome error object from create_score:", JSON.stringify(e, Object.getOwnPropertyNames(e), 2));
            if (errorMsg) { // If update_game already set an error
                errorMsg += ` Additionally, failed to save scores: ${e.data?.data || e.message || "Unknown error"}.`;
            } else { // If update_game succeeded
