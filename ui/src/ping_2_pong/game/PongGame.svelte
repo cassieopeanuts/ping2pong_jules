@@ -29,7 +29,7 @@
   const PADDLE_HEIGHT = 100;
   const BALL_RADIUS = 10;
   const WINNING_SCORE = 10;
-  const PADDLE_SPEED = 25;
+  const PADDLE_SPEED = 18;
   const UPDATE_INTERVAL = 50; // ms interval for sending signal updates
 
   // Reactive Canvas Dimensions
@@ -265,11 +265,11 @@
 
     // Prepare payload matching the backend's PaddleUpdatePayload struct
     const currentPaddleY = isPlayer1 ? paddle1Y : paddle2Y;
-    const relativeY = canvasHeight > 0 ? currentPaddleY / canvasHeight : 0.5; // Default to center if canvasHeight is 0
+    const absoluteY = Math.round(currentPaddleY);
 
     const payload = {
         game_id: gameId, // The original ActionHash identifying the game
-        relative_paddle_y: relativeY
+        paddle_y: absoluteY
     };
 
     try {
@@ -290,14 +290,14 @@
     lastBallUpdate = now; // Update timestamp
 
     // Prepare payload matching the backend's BallUpdatePayload struct
-    const relativeX = canvasWidth > 0 ? ball.x / canvasWidth : 0.5;
-    const relativeY = canvasHeight > 0 ? ball.y / canvasHeight : 0.5;
+    const absoluteX = Math.round(ball.x);
+    const absoluteY = Math.round(ball.y);
 
     const payload = {
         game_id: gameId, // The original ActionHash identifying the game
-        relative_ball_x: relativeX,
-        relative_ball_y: relativeY,
-        ball_dx: Math.round(ball.dx), // dx/dy are still absolute
+        ball_x: absoluteX,
+        ball_y: absoluteY,
+        ball_dx: Math.round(ball.dx),
         ball_dy: Math.round(ball.dy)
     };
 
@@ -343,17 +343,16 @@
         switch (s.type) {
           case "PaddleUpdate":
             if (encodeHashToBase64(s.player) !== meB64) {
-              const absoluteY = s.relative_paddle_y * canvasHeight;
-              if (isPlayer1) paddle2Y = absoluteY;
-              else           paddle1Y = absoluteY;
+              if (isPlayer1) paddle2Y = s.paddle_y;
+              else           paddle1Y = s.paddle_y;
             }
             break;
 
           case "BallUpdate":
             if (!isPlayer1) {
-              ball.x = s.relative_ball_x * canvasWidth;
-              ball.y = s.relative_ball_y * canvasHeight;
-              ball.dx = s.ball_dx; // dx/dy are still absolute
+              ball.x = s.ball_x;
+              ball.y = s.ball_y;
+              ball.dx = s.ball_dx;
               ball.dy = s.ball_dy;
             }
             break;
