@@ -266,10 +266,17 @@ pub fn create_game(input: CreateGameInput) -> ExternResult<Record> {
 /// Retrieves the latest version of a game record, following the GameUpdates links.
 #[hdk_extern]
 pub fn get_latest_game(original_game_hash: ActionHash) -> ExternResult<Option<Record>> {
+    debug!("[game.rs] get_latest_game: Called with original_game_hash: {:?}", original_game_hash);
     // Get links pointing away from the original game hash with the 'GameUpdates' type
-    let links = get_links(
+    let links_result = get_links(
         GetLinksInputBuilder::try_new(original_game_hash.clone(), LinkTypes::GameUpdates)?.build(),
-    )?;
+    );
+    let links = match links_result {
+        Ok(l) => l,
+        Err(e) => return Err(e.into()), // Propagate error if get_links fails
+    };
+    debug!("[game.rs] get_latest_game: Found links for GameUpdates: {:?}", links);
+
     // Find the link with the latest timestamp
     let latest_link = links
         .into_iter()
@@ -285,8 +292,13 @@ pub fn get_latest_game(original_game_hash: ActionHash) -> ExternResult<Option<Re
         }
         None => original_game_hash.clone(), // No updates found, use the original hash
     };
+    debug!("[game.rs] get_latest_game: Determined latest_game_hash: {:?}", latest_game_hash);
+
+    debug!("[game.rs] get_latest_game: Attempting to get record for hash: {:?}", latest_game_hash);
     // Get the record associated with the latest action hash
-    get(latest_game_hash, GetOptions::default())
+    let result = get(latest_game_hash, GetOptions::default());
+    debug!("[game.rs] get_latest_game: Returning record: {:?}", result.as_ref().ok().and_then(|opt_r| opt_r.as_ref().map(|r| r.action_hashed().hash.clone())));
+    result
 }
 
 /// Retrieves the original record of a game creation action.
@@ -356,19 +368,43 @@ pub struct UpdateGameInput {
 /// Updates a game entry. Creates a new action and links it to the original game via GameUpdates.
 #[hdk_extern]
 pub fn update_game(input: UpdateGameInput) -> ExternResult<Record> {
+    debug!("[game.rs] update_game: Called with input: {:?}", input);
+
     // Commit the update action, referencing the previous action hash
-    let updated_game_hash = update_entry(input.previous_game_hash.clone(), &input.updated_game)?;
+    let updated_action_hash = match update_entry(input.previous_game_hash.clone(), &input.updated_game) {
+        Ok(hash) => {
+            debug!("[game.rs] update_game: update_entry successful, new action hash: {:?}", hash);
+            hash
+        }
+        Err(e) => {
+            debug!("[game.rs] update_game: update_entry failed: {:?}", e);
+            return Err(e);
+        }
+    };
+
     // Create a link from the original game to this new update action
-    create_link(
+    match create_link(
         input.original_game_hash.clone(),
-        updated_game_hash.clone(),
+        updated_action_hash.clone(),
         LinkTypes::GameUpdates,
         (),
-    )?;
+    ) {
+        Ok(_) => {
+            debug!("[game.rs] update_game: create_link for GameUpdates successful.");
+        }
+        Err(e) => {
+            debug!("[game.rs] update_game: create_link for GameUpdates failed: {:?}", e);
+            // Decide if we should return early or try to get the record anyway.
+            // For now, let's assume linking is critical for consistency.
+            return Err(e);
+        }
+    };
+
     // Fetch and return the newly created update record
-    let record = get(updated_game_hash.clone(), GetOptions::default())?.ok_or(wasm_error!(
+    let record = get(updated_action_hash.clone(), GetOptions::default())?.ok_or(wasm_error!(
         WasmErrorInner::Guest("Could not find the newly updated Game record".to_string())
     ))?;
+    debug!("[game.rs] update_game: Successfully processed, returning record for action: {:?}", record.action_hashed().hash);
     Ok(record)
 }
 

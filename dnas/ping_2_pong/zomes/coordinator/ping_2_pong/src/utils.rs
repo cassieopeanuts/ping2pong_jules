@@ -43,6 +43,8 @@ pub fn player_exists(agent_pub_key: &AgentPubKey) -> ExternResult<bool> {
 
 // Helper function to check if a player is already in an *InProgress* game.
 pub fn is_player_in_ongoing_game(player_pub_key: &AgentPubKey) -> ExternResult<bool> {
+    debug!("[utils.rs] is_player_in_ongoing_game: Called for player: {:?}", player_pub_key);
+
     // Check games where the player is player1.
     let player1_links = get_links(
         GetLinksInputBuilder::try_new(player_pub_key.clone(), LinkTypes::Player1ToGames)?
@@ -51,18 +53,21 @@ pub fn is_player_in_ongoing_game(player_pub_key: &AgentPubKey) -> ExternResult<b
 
     for link in player1_links {
         if let Some(game_action_hash) = link.target.into_action_hash() {
+            debug!("[utils.rs] is_player_in_ongoing_game: P1 Loop - Found game link for player {:?}: game_action_hash {:?}", player_pub_key, game_action_hash);
             // Fetch the LATEST state of the game
-            let maybe_record = crate::game::get_latest_game(game_action_hash)?;
+            let maybe_record = crate::game::get_latest_game(game_action_hash.clone())?; // Cloned game_action_hash
+            debug!("[utils.rs] is_player_in_ongoing_game: P1 Loop - get_latest_game result for game {:?}: {:?}", game_action_hash, maybe_record.as_ref().map(|r| r.action_hashed().hash.clone()));
             if let Some(record) = maybe_record {
                 if let Some(entry_data) = record.entry().as_option() {
-                     if let Ok(game) = Game::try_from(entry_data.clone()) {
+                     if let Ok(game) = Game::try_from(entry_data.clone()) { // Assuming Game from ping_2_pong_integrity
+                         debug!("[utils.rs] is_player_in_ongoing_game: P1 Loop - Game {:?} deserialized. Status: {:?}, P1: {:?}, P2: {:?}", game_action_hash, game.game_status, game.player_1, game.player_2.is_some());
                          // *** FIX: Only return true if the game status is InProgress ***
-                         if game.game_status == GameStatus::InProgress {
-                            debug!("Player {:?} found in InProgress game {:?} as Player 1", player_pub_key, record.action_hashed().hash);
+                         if game.game_status == GameStatus::InProgress { // Assuming GameStatus from ping_2_pong_integrity::game
+                            debug!("[utils.rs] is_player_in_ongoing_game: P1 Loop - Player {:?} IS in InProgress game {:?}. Returning true.", player_pub_key, game_action_hash);
                             return Ok(true);
                         }
-                     } else { warn!("Failed to deserialize Game entry for record: {:?}", record.action_hashed().hash); }
-                } else { warn!("Game record has no entry data: {:?}", record.action_hashed().hash); }
+                     } else { warn!("[utils.rs] is_player_in_ongoing_game: P1 Loop - Failed to deserialize Game entry for record: {:?}", record.action_hashed().hash); }
+                } else { warn!("[utils.rs] is_player_in_ongoing_game: P1 Loop - Game record has no entry data: {:?}", record.action_hashed().hash); }
             }
         }
     }
@@ -75,23 +80,26 @@ pub fn is_player_in_ongoing_game(player_pub_key: &AgentPubKey) -> ExternResult<b
 
     for link in player2_links {
          if let Some(game_action_hash) = link.target.into_action_hash() {
+            debug!("[utils.rs] is_player_in_ongoing_game: P2 Loop - Found game link for player {:?}: game_action_hash {:?}", player_pub_key, game_action_hash);
              // Fetch the LATEST state of the game
-             let maybe_record = crate::game::get_latest_game(game_action_hash)?;
+             let maybe_record = crate::game::get_latest_game(game_action_hash.clone())?; // Cloned game_action_hash
+             debug!("[utils.rs] is_player_in_ongoing_game: P2 Loop - get_latest_game result for game {:?}: {:?}", game_action_hash, maybe_record.as_ref().map(|r| r.action_hashed().hash.clone()));
              if let Some(record) = maybe_record {
                  if let Some(entry_data) = record.entry().as_option() {
-                      if let Ok(game) = Game::try_from(entry_data.clone()) {
+                      if let Ok(game) = Game::try_from(entry_data.clone()) { // Assuming Game from ping_2_pong_integrity
+                          debug!("[utils.rs] is_player_in_ongoing_game: P2 Loop - Game {:?} deserialized. Status: {:?}, P1: {:?}, P2: {:?}", game_action_hash, game.game_status, game.player_1, game.player_2.is_some());
                           // *** FIX: Only return true if the game status is InProgress ***
-                          if game.game_status == GameStatus::InProgress {
-                             debug!("Player {:?} found in InProgress game {:?} as Player 2", player_pub_key, record.action_hashed().hash);
+                          if game.game_status == GameStatus::InProgress { // Assuming GameStatus from ping_2_pong_integrity::game
+                             debug!("[utils.rs] is_player_in_ongoing_game: P2 Loop - Player {:?} IS in InProgress game {:?}. Returning true.", player_pub_key, game_action_hash);
                              return Ok(true);
                          }
-                      } else { warn!("Failed to deserialize Game entry for record: {:?}", record.action_hashed().hash); }
-                 } else { warn!("Game record has no entry data: {:?}", record.action_hashed().hash); }
+                      } else { warn!("[utils.rs] is_player_in_ongoing_game: P2 Loop - Failed to deserialize Game entry for record: {:?}", record.action_hashed().hash); }
+                 } else { warn!("[utils.rs] is_player_in_ongoing_game: P2 Loop - Game record has no entry data: {:?}", record.action_hashed().hash); }
              }
          }
     }
 
     // If no InProgress games were found for the player
-    debug!("Player {:?} not found in any InProgress game.", player_pub_key);
+    debug!("[utils.rs] is_player_in_ongoing_game: Player {:?} is NOT in any InProgress game after checking all links. Returning false.", player_pub_key);
     Ok(false)
 }
