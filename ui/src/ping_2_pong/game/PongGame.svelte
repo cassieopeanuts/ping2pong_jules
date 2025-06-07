@@ -241,6 +241,7 @@
         paddle1Y = Math.min(canvasHeight - PADDLE_HEIGHT, paddle1Y + PADDLE_SPEED); // Move down, clamp at bottom
         moved = true;
       }
+      if (moved) paddle1Y = paddle1Y; // Force Svelte to see assignment for reactivity
     // Player 2 controls
     } else if (isPlayer2) {
       if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") {
