@@ -290,13 +290,17 @@
     lastBallUpdate = now; // Update timestamp
 
     // Prepare payload matching the backend's BallUpdatePayload struct
-    const absoluteX = Math.round(ball.x);
-    const absoluteY = Math.round(ball.y);
+    // Ensure values sent as u32 to the DNA are not negative.
+    const clampedBallX = Math.max(0, ball.x);
+    const clampedBallY = Math.max(0, ball.y);
+
+    const absoluteX = Math.round(clampedBallX);
+    const absoluteY = Math.round(clampedBallY);
 
     const payload = {
         game_id: gameId, // The original ActionHash identifying the game
-        ball_x: absoluteX,
-        ball_y: absoluteY,
+        ball_x: absoluteX, // Will be non-negative
+        ball_y: absoluteY, // Will be non-negative
         ball_dx: Math.round(ball.dx),
         ball_dy: Math.round(ball.dy),
     };
