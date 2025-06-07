@@ -9,7 +9,6 @@
   // Import local types including the specific signal structures if needed for receiving
   // Note: Signal types are used here for clarity but aren't strictly required if only checking `signalPayload.type`
   import type { Game, Score, GameStatus, UpdateGameInput, PaddleUpdateSignal, BallUpdateSignal, GameOverSignal, ScoreUpdateSignal } from "../ping_2_pong/types";
-  import { HOLOCHAIN_ROLE_NAME, HOLOCHAIN_ZOME_NAME } from "../../holochainConfig"; // Import constants
 
   // Create dispatcher to send events up to the parent (App.svelte)
   const dispatch = createEventDispatcher();
@@ -23,8 +22,8 @@
   const appClientContext = getContext<ClientContext>(clientContext);
 
   // Game Constants
-  // const CANVAS_WIDTH = 640; // Removed
-  // const CANVAS_HEIGHT = 480; // Removed
+  const CANVAS_WIDTH = 800;
+  const CANVAS_HEIGHT = 600;
   const PADDLE_WIDTH = 10;
   const PADDLE_HEIGHT = 100;
   const BALL_RADIUS = 10;
@@ -32,18 +31,14 @@
   const PADDLE_SPEED = 25;
   const UPDATE_INTERVAL = 50; // ms interval for sending signal updates
 
-  // Reactive Canvas Dimensions
-  const canvasWidth: number = 640; // Fixed width
-  const canvasHeight: number = 480; // Fixed height
-
   // Component State
   let gameRecord: Record | undefined; // Stores the latest fetched Holochain record for the game
   let liveGame: Game | undefined; // Stores the deserialized Game data from the entry (set only when ready)
   let isPlayer1 = false; // Flag indicating if the current user is Player 1
   let isPlayer2 = false; // Flag indicating if the current user is Player 2
-  let paddle1Y = canvasHeight / 2 - PADDLE_HEIGHT / 2; // Player 1 paddle Y position
-  let paddle2Y = canvasHeight / 2 - PADDLE_HEIGHT / 2; // Player 2 paddle Y position
-  let ball = { x: canvasWidth / 2, y: canvasHeight / 2, dx: 5, dy: 5 }; // Ball position and velocity
+  let paddle1Y = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2; // Player 1 paddle Y position
+  let paddle2Y = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2; // Player 2 paddle Y position
+  let ball = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2, dx: 5, dy: 5 }; // Ball position and velocity
   let score = { player1: 0, player2: 0 }; // Current scores
   let gameOver = false; // Flag indicating if the game has ended
   let winner: AgentPubKey | null = null; // Stores the winner's public key if game is over
@@ -95,8 +90,8 @@
       // Call the zome function to get the latest game record based on the original hash
       const result: Record | null = await client.callZome({
         cap_secret: null,
-        role_name: HOLOCHAIN_ROLE_NAME,
-        zome_name: HOLOCHAIN_ZOME_NAME,
+        role_name: "ping_2_pong",
+        zome_name: "ping_2_pong",
         fn_name: "get_latest_game", // Gets the record associated with the latest update action
         payload: gameId, // Pass the original game hash
       });
@@ -173,21 +168,13 @@
 
           // Initialize positions (only if score is 0)
           if (score.player1 === 0 && score.player2 === 0) {
-              paddle1Y = liveGame.player_1_paddle ?? (canvasHeight / 2 - PADDLE_HEIGHT / 2);
-              paddle2Y = liveGame.player_2_paddle ?? (canvasHeight / 2 - PADDLE_HEIGHT / 2);
-              ball.x = liveGame.ball_x ?? (canvasWidth / 2);
-              ball.y = liveGame.ball_y ?? (canvasHeight / 2);
-
-              if (isPlayer1) {
-                ball.dx = 5 * (Math.random() > 0.5 ? 1 : -1);
-                ball.dy = 5 * (Math.random() > 0.5 ? 1 : -1);
-                console.log("[PongGame initializeGame] Player 1 initialized ball position and velocity.");
-              } else {
-                // Player 2 waits for ball updates from Player 1 for velocity
-                ball.dx = 0;
-                ball.dy = 0;
-                console.log("[PongGame initializeGame] Player 2 initialized ball position (velocity set to 0, awaiting P1 update).");
-              }
+              paddle1Y = liveGame.player_1_paddle ?? (CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2);
+              paddle2Y = liveGame.player_2_paddle ?? (CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2);
+              ball.x = liveGame.ball_x ?? (CANVAS_WIDTH / 2);
+              ball.y = liveGame.ball_y ?? (CANVAS_HEIGHT / 2);
+              ball.dx = 5 * (Math.random() > 0.5 ? 1 : -1);
+              ball.dy = 5 * (Math.random() > 0.5 ? 1 : -1);
+              console.log("[PongGame initializeGame] Initialized positions.");
           }
 
           // Start the game loop and listeners
@@ -238,17 +225,16 @@
         paddle1Y = Math.max(0, paddle1Y - PADDLE_SPEED); // Move up, clamp at top
         moved = true;
       } else if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") {
-        paddle1Y = Math.min(canvasHeight - PADDLE_HEIGHT, paddle1Y + PADDLE_SPEED); // Move down, clamp at bottom
+        paddle1Y = Math.min(CANVAS_HEIGHT - PADDLE_HEIGHT, paddle1Y + PADDLE_SPEED); // Move down, clamp at bottom
         moved = true;
       }
-      if (moved) paddle1Y = paddle1Y; // Force Svelte to see assignment for reactivity
     // Player 2 controls
     } else if (isPlayer2) {
       if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") {
         paddle2Y = Math.max(0, paddle2Y - PADDLE_SPEED); // Move up, clamp at top
         moved = true;
       } else if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") {
-        paddle2Y = Math.min(canvasHeight - PADDLE_HEIGHT, paddle2Y + PADDLE_SPEED); // Move down, clamp at bottom
+        paddle2Y = Math.min(CANVAS_HEIGHT - PADDLE_HEIGHT, paddle2Y + PADDLE_SPEED); // Move down, clamp at bottom
         moved = true;
       }
     }
@@ -264,22 +250,19 @@
     lastPaddleUpdate = now; // Update timestamp of last sent signal
 
     // Prepare payload matching the backend's PaddleUpdatePayload struct
-    const currentPaddleY = isPlayer1 ? paddle1Y : paddle2Y;
-    const absoluteY = Math.round(currentPaddleY);
-
     const payload = {
         game_id: gameId, // The original ActionHash identifying the game
-        paddle_y: absoluteY,
+        paddle_y: Math.round(isPlayer1 ? paddle1Y : paddle2Y) // Send the current Y position, rounded
     };
 
     try {
       // Call the specific backend function to send the signal
       await client.callZome({
-          cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
+          cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong",
           fn_name: "send_paddle_update", // Use the dedicated function
           payload: payload
       });
-    } catch (e) { console.error("Error sending paddle update signal. Full error:", e); } // Enhanced log
+    } catch (e) { console.error("Error sending paddle update signal:", e); }
   }
 
   // Sends the current ball position and velocity update signal (only Player 1 does this)
@@ -290,29 +273,22 @@
     lastBallUpdate = now; // Update timestamp
 
     // Prepare payload matching the backend's BallUpdatePayload struct
-    // Ensure values sent as u32 to the DNA are not negative.
-    const clampedBallX = Math.max(0, ball.x);
-    const clampedBallY = Math.max(0, ball.y);
-
-    const absoluteX = Math.round(clampedBallX);
-    const absoluteY = Math.round(clampedBallY);
-
     const payload = {
         game_id: gameId, // The original ActionHash identifying the game
-        ball_x: absoluteX, // Will be non-negative
-        ball_y: absoluteY, // Will be non-negative
-        ball_dx: Math.round(ball.dx),
-        ball_dy: Math.round(ball.dy),
+        ball_x: Math.round(ball.x),
+        ball_y: Math.round(ball.y),
+        ball_dx: Math.round(ball.dx), // Assuming backend expects i32
+        ball_dy: Math.round(ball.dy)  // Assuming backend expects i32
     };
 
     try {
       // Call the specific backend function
       await client.callZome({
-          cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
+          cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong",
           fn_name: "send_ball_update", // Use the dedicated function
           payload: payload
       });
-    } catch (e) { console.error("Error sending ball update signal. Full error:", e); } // Enhanced log
+    } catch (e) { console.error("Error sending ball update signal:", e); }
   }
 
   async function sendScoreUpdate() {
@@ -320,8 +296,8 @@
     try {
       await client.callZome({
         cap_secret: null,
-        role_name : HOLOCHAIN_ROLE_NAME,
-        zome_name : HOLOCHAIN_ZOME_NAME,
+        role_name : "ping_2_pong",
+        zome_name : "ping_2_pong",
         fn_name   : "send_score_update",            // <- backend helper you added earlier
         payload: {
           game_id: gameId,
@@ -329,7 +305,7 @@
           score2 : score.player2
         }
       });
-    } catch (e) { console.error("Score update failed. Full error:", e); } // Enhanced log
+    } catch (e) { console.error("Score update failed:", e); }
   }
 
   // Sets up the listener for incoming signals related to this specific game
@@ -347,22 +323,15 @@
         switch (s.type) {
           case "PaddleUpdate":
             if (encodeHashToBase64(s.player) !== meB64) {
-              const localAbsY = s.paddle_y; // Directly use paddle_y
-
-              if (isPlayer1) { // This client is P1, signal is about P2's paddle
-                paddle2Y = localAbsY;
-              } else { // This client is P2, signal is about P1's paddle
-                paddle1Y = localAbsY;
-              }
+              if (isPlayer1) paddle2Y = s.paddle_y;
+              else           paddle1Y = s.paddle_y;
             }
             break;
 
           case "BallUpdate":
             if (!isPlayer1) {
-              ball.x = s.ball_x; // Directly use ball_x
-              ball.y = s.ball_y; // Directly use ball_y
-              ball.dx = s.ball_dx;
-              ball.dy = s.ball_dy;
+              ball.x = s.ball_x; ball.y = s.ball_y;
+              ball.dx = s.ball_dx; ball.dy = s.ball_dy;
             }
             break;
 
@@ -372,10 +341,6 @@
             break;
 
           case "GameOver":
-            // Ensure playerKey is defined before trying to use it for logging context
-            if (isPlayer2) { // Only log this detailed message if the current player is Player 2
-              console.log(`[PongGame Signal] Player 2 (invitee) received GameOver signal. Game ID: ${encodeHashToBase64(s.game_id)}, Winner: ${s.winner ? encodeHashToBase64(s.winner) : 'None'}, Signal: `, s);
-            }
             handleRemoteGameOver(
               s.winner ?? null as AgentPubKey|null
             );
@@ -394,9 +359,9 @@
     ball.y += ball.dy;
 
     // Check for collisions with top/bottom walls
-    if (ball.y + BALL_RADIUS > canvasHeight || ball.y - BALL_RADIUS < 0) {
+    if (ball.y + BALL_RADIUS > CANVAS_HEIGHT || ball.y - BALL_RADIUS < 0) {
       ball.dy = -ball.dy; // Reverse vertical velocity
-      ball.y = Math.max(BALL_RADIUS, Math.min(canvasHeight - BALL_RADIUS, ball.y)); // Clamp position
+      ball.y = Math.max(BALL_RADIUS, Math.min(CANVAS_HEIGHT - BALL_RADIUS, ball.y)); // Clamp position
     }
 
     // Check for collisions with paddles
@@ -409,9 +374,9 @@
         hitPaddle = true;
     }
     // Player 2 paddle collision logic
-    else if (ball.dx > 0 && ball.x + BALL_RADIUS > canvasWidth - PADDLE_WIDTH && ball.x < canvasWidth - BALL_RADIUS && ball.y > paddle2Y && ball.y < paddle2Y + PADDLE_HEIGHT) {
+    else if (ball.dx > 0 && ball.x + BALL_RADIUS > CANVAS_WIDTH - PADDLE_WIDTH && ball.x < CANVAS_WIDTH - BALL_RADIUS && ball.y > paddle2Y && ball.y < paddle2Y + PADDLE_HEIGHT) {
         ball.dx = -ball.dx * 1.05; // Reverse horizontal velocity, increase speed
-        ball.x = canvasWidth - PADDLE_WIDTH - BALL_RADIUS; // Reposition ball
+        ball.x = CANVAS_WIDTH - PADDLE_WIDTH - BALL_RADIUS; // Reposition ball
         ball.dy = (ball.y - (paddle2Y + PADDLE_HEIGHT / 2)) * 0.35; // Add vertical angle
         hitPaddle = true;
     }
@@ -420,7 +385,7 @@
     let scored = false;
     if (ball.x + BALL_RADIUS < 0) {          // P2 scores
       score.player2++; scored = true; sendScoreUpdate();
-    } else if (ball.x - BALL_RADIUS > canvasWidth) { // P1 scores
+    } else if (ball.x - BALL_RADIUS > CANVAS_WIDTH) { // P1 scores
       score.player1++; scored = true; sendScoreUpdate();
     }
 
@@ -435,8 +400,8 @@
         handleLocalGameOver(); // Trigger backend updates and game over signal
       } else {
         // If game not over, reset ball for the next point
-        ball.x = canvasWidth / 2;
-        ball.y = canvasHeight / 2;
+        ball.x = CANVAS_WIDTH / 2;
+        ball.y = CANVAS_HEIGHT / 2;
         ball.dx = 5 * (score.player1 > score.player2 ? -1 : 1); // Serve towards the player who lost the point
         ball.dy = 5 * (Math.random() > 0.5 ? 1 : -1); // Random vertical serve direction
         lastBallUpdate = 0; // Reset throttle timer for immediate update
@@ -505,47 +470,31 @@
             };
             console.log("Updating game status to Finished with payload:", updatePayload);
             // Call the backend zome function to commit the update
-            await client.callZome({ cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME, fn_name: "update_game", payload: updatePayload });
-            console.log("Game status updated on DHT successfully.");
-       } catch (e: any) {
-            console.error("CRITICAL: Error updating game status to Finished in handleLocalGameOver. Error:", e);
-            console.error("Detailed zome error object from update_game:", JSON.stringify(e, Object.getOwnPropertyNames(e), 2));
-            errorMsg = `Failed to finalize game status: ${e.data?.data || e.message || "Unknown error"}. Attempting to save scores anyway.`;
-            // The errorMsg should be displayed by the draw() function.
-            // REMOVED return; to allow execution to continue
-       }
-       console.log("[PongGame P1] Attempted to update game status to Finished.");
+            await client.callZome({ cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong", fn_name: "update_game", payload: updatePayload });
+            console.log("Game status updated on DHT.");
+       } catch (e) { console.error("Error updating game status:", e); errorMsg="Failed to update game status."; /* Continue anyway */ }
 
        // 2. Save Final Scores for both players on the DHT
        try {
-           if (!liveGame || !liveGame.player_1) { throw new Error("liveGame or player_1 missing for score saving"); }
+           if (!liveGame || !liveGame.player_1) { throw new Error("liveGame or player_1 missing"); }
            // Prepare payload for Player 1's score (backend sets timestamp)
            const score1Payload: Omit<Score, 'created_at'> & { created_at?: number } = {
                game_id: original_game_hash,
-               player: liveGame.player_1, // Already AgentPubKey
+               player: liveGame.player_1,
                player_points: score.player1,
            };
-           await client.callZome({ cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME, fn_name: "create_score", payload: score1Payload });
-           
+           await client.callZome({ cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong", fn_name: "create_score", payload: score1Payload });
+           // Prepare and send payload for Player 2's score (if P2 exists)
            if (liveGame.player_2) {
                 const score2Payload: Omit<Score, 'created_at'> & { created_at?: number } = {
                    game_id: original_game_hash,
-                   player: liveGame.player_2, // Already AgentPubKey
+                   player: liveGame.player_2,
                    player_points: score.player2,
                 };
-                await client.callZome({ cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME, fn_name: "create_score", payload: score2Payload });
+                await client.callZome({ cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong", fn_name: "create_score", payload: score2Payload });
            }
            console.log("Scores saved.");
-       } catch (e: any) {
-           console.error("Error saving scores in handleLocalGameOver. Error:", e);
-           console.error("Detailed zome error object from create_score:", JSON.stringify(e, Object.getOwnPropertyNames(e), 2));
-           if (errorMsg) { // If update_game already set an error
-               errorMsg += ` Additionally, failed to save scores: ${e.data?.data || e.message || "Unknown error"}.`;
-           } else { // If update_game succeeded
-               errorMsg = `Game status finalized, but failed to save scores: ${e.data?.data || e.message || "Unknown error"}.`;
-           }
-       }
-       console.log("[PongGame P1] Attempted to save scores.");
+       } catch (e) { console.error("Error saving scores:", e); errorMsg = "Failed to save scores."; }
 
        // 3. Send GameOver signal using the specific function
        try {
@@ -558,12 +507,12 @@
            };
            // Call the specific backend function to send the signal
            await client.callZome({
-               cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
+               cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong",
                fn_name: "send_game_over", // *** Use the specific function ***
                payload: gameOverPayload
             });
            console.log("GameOver signal sent.");
-       } catch(e: any) { console.error("Error sending GameOver signal. Full error:", e); } // Enhanced log
+       } catch(e) { console.error("Error sending GameOver signal:", e); }
 
        // 4. (Future) Implement saving game statistics here
        // await saveStatistics();
@@ -571,17 +520,9 @@
 
   // Handles game over triggered by receiving a GameOver signal from the opponent
   function handleRemoteGameOver(remoteWinner: AgentPubKey | null) {
-      // Log for Player 2 context at the beginning
-      if (isPlayer2) {
-        console.log(`[PongGame] Player 2 (invitee) executing handleRemoteGameOver. Winner: ${remoteWinner ? encodeHashToBase64(remoteWinner) : 'None'}. Current gameOver state: ${gameOver}`);
-      }
       if (gameOver) return; // Prevent processing if already game over
-      console.log("Handling remote game over signal..."); // General log for any player receiving it
+      console.log("Handling remote game over signal...");
       gameOver = true; // Set game over flag
-      // Log for Player 2 context after state update
-      if (isPlayer2) {
-        console.log(`[PongGame] Player 2 (invitee) gameOver state UPDATED to: ${gameOver}`);
-      }
       winner = remoteWinner; // Store the winner received from the signal
       // The UI will update in the next 'draw' call based on the 'gameOver' flag
   }
@@ -605,56 +546,49 @@
 
     // --- Drawing ---
     // Clear canvas and draw background/midline
-    ctx.fillStyle = "#FFA500"; /* Orange, from --primary-text-color */ ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-    ctx.strokeStyle = "#000000"; /* Black */ ctx.lineWidth = 4; ctx.beginPath();
-    ctx.setLineDash([10, 10]); ctx.moveTo(canvasWidth / 2, 0); ctx.lineTo(canvasWidth / 2, canvasHeight);
+    ctx.fillStyle = "#FFA500"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.strokeStyle = "#000000"; ctx.lineWidth = 4; ctx.beginPath();
+    ctx.setLineDash([10, 10]); ctx.moveTo(CANVAS_WIDTH / 2, 0); ctx.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT);
     ctx.stroke(); ctx.setLineDash([]); // Reset line dash style
 
     // Display Loading or Error message if game state isn't loaded yet
     // Use loadingMsg first, then errorMsg if initialization failed
     if (!liveGame && !gameOver) { // Only show loading/error if game hasn't started or finished
-        ctx.fillStyle = "#000000"; /* Black text on orange background */
-        ctx.font = "24px 'Press Start 2P', monospace";
-        ctx.textAlign = "center";
-        ctx.fillText(errorMsg || loadingMsg || "Loading...", canvasWidth / 2, canvasHeight / 2);
-
-        // Keep requesting frames if there's an error message to display,
-        // OR if there's a loading message (and no game over yet).
-        // This ensures the loop continues in error states or loading states.
-        if (errorMsg || (loadingMsg && !gameOver)) { // Modified condition
-            animationFrameId = requestAnimationFrame(draw);
-        }
-        return; // Don't draw game elements if not loaded/ready or error
+        ctx.fillStyle = "#000000"; ctx.font = "30px 'Press Start 2P', monospace"; ctx.textAlign = "center";
+        ctx.fillText(errorMsg || loadingMsg || "Loading...", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+        // Keep requesting frames only if still loading (no error and not game over)
+        if (!errorMsg && loadingMsg) animationFrameId = requestAnimationFrame(draw);
+        return; // Don't draw game elements if not loaded/ready
     }
 
     // Draw Game Elements (only if liveGame is set)
     if (liveGame) {
-        ctx.fillStyle = "#000000"; /* Black */
+        ctx.fillStyle = "#000000";
         ctx.fillRect(0, paddle1Y, PADDLE_WIDTH, PADDLE_HEIGHT); // Player 1 Paddle (left)
-        ctx.fillRect(canvasWidth - PADDLE_WIDTH, paddle2Y, PADDLE_WIDTH, PADDLE_HEIGHT); // Player 2 Paddle (right)
+        ctx.fillRect(CANVAS_WIDTH - PADDLE_WIDTH, paddle2Y, PADDLE_WIDTH, PADDLE_HEIGHT); // Player 2 Paddle (right)
         ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, 2 * Math.PI); ctx.fill(); // Ball
 
         // Draw Scores
-        ctx.font = "40px 'Press Start 2P', monospace"; ctx.textAlign = "center"; // fillStyle is already black
-        ctx.fillText(score.player1.toString(), canvasWidth / 4, 60); // Player 1 Score
-        ctx.fillText(score.player2.toString(), (3 * canvasWidth) / 4, 60); // Player 2 Score
+        ctx.font = "40px 'Press Start 2P', monospace"; ctx.textAlign = "center";
+        ctx.fillText(score.player1.toString(), CANVAS_WIDTH / 4, 60); // Player 1 Score
+        ctx.fillText(score.player2.toString(), (3 * CANVAS_WIDTH) / 4, 60); // Player 2 Score
     }
 
     // --- Game Over Overlay ---
     // Display if the gameOver flag is true
     if (gameOver) {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; ctx.fillRect(0, 0, canvasWidth, canvasHeight); // Dim background (semi-transparent black still fine)
-        ctx.fillStyle = "#000000"; /* Black text */ ctx.font = "48px 'Press Start 2P', monospace"; ctx.textAlign = "center"; /* Adjusted from 50px */
-        ctx.fillText("GAME OVER", canvasWidth / 2, canvasHeight / 2 - 50);
-        ctx.font = "24px 'Press Start 2P', monospace"; /* Adjusted from 30px */
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT); // Dim background
+        ctx.fillStyle = "#000000"; ctx.font = "50px 'Press Start 2P', monospace"; ctx.textAlign = "center";
+        ctx.fillText("GAME OVER", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 50);
+        ctx.font = "30px 'Press Start 2P', monospace";
          // Display winner's name
          if (winner && liveGame) {
              const winnerName = encodeHashToBase64(winner) === encodeHashToBase64(liveGame.player_1) ? "Player 1" : "Player 2";
-             ctx.fillText(`${winnerName} Wins!`, canvasWidth / 2, canvasHeight / 2);
-         } else { ctx.fillText("Game Finished", canvasWidth / 2, canvasHeight / 2); } // Fallback if no winner determined
+             ctx.fillText(`${winnerName} Wins!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+         } else { ctx.fillText("Game Finished", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2); } // Fallback if no winner determined
          // Display final score
          ctx.font = "40px 'Press Start 2P', monospace";
-         ctx.fillText(`${score.player1} - ${score.player2}`, canvasWidth / 2, canvasHeight / 2 + 50);
+         ctx.fillText(`${score.player1} - ${score.player2}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
         // Stop the animation loop once the game over screen is drawn
         return;
     }
@@ -666,8 +600,8 @@
         animationFrameId = requestAnimationFrame(draw); // Continue loop
     } else if (liveGame && liveGame.game_status === 'Waiting') {
         // If somehow we are drawing but status is still Waiting, show message and wait
-        ctx.fillStyle = "#000000"; ctx.font = "24px 'Press Start 2P', monospace"; ctx.textAlign = "center"; /* Changed font, kept 24px, changed color */
-        ctx.fillText("Waiting for game to start...", canvasWidth / 2, canvasHeight / 2 - 50); // Centered a bit more
+        ctx.fillStyle = "#888"; ctx.font = "24px Arial"; ctx.textAlign = "center";
+        ctx.fillText("Waiting for game to start...", CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
         animationFrameId = requestAnimationFrame(draw); // Continue loop while waiting
     }
   }
@@ -677,23 +611,11 @@
     client = await appClientContext.getClient(); // Initialize Holochain client
     if (canvas) {
         ctx = canvas.getContext("2d")!;
-        // Set initial size and draw
-        // The canvas dimensions are now reactive, so direct manipulation
-        // of canvas.width and canvas.height should trigger updates.
-        // We rely on CSS to size the canvas element, and then read its
-        // clientWidth/clientHeight in the draw() or a dedicated setup function.
-        // Canvas dimensions are now fixed.
-        // paddle1Y and paddle2Y are already initialized using these fixed dimensions.
-        // Ball position is also initialized using these fixed dimensions.
-        // The canvas element in the template will bind to these fixed dimensions.
-        if (ctx) {
-          draw(); // Initial draw
-        }
     } else {
         console.error("Canvas element not found on mount.");
         errorMsg = "Failed to initialize canvas.";
         // Attempt to draw error even without game loop starting
-        if(ctx) draw(); // ctx might not be set here if canvas is null
+        if(ctx) draw();
         return; // Stop initialization if canvas fails
     }
     // Start the initialization process (which includes retries)
@@ -722,7 +644,7 @@
             <div class="player player2">P2: {#if liveGame?.player_2}{truncatePubkey(liveGame.player_2)}{:else}Waiting...{/if}</div>
         </div>
 
-        <canvas bind:this={canvas} width={canvasWidth} height={canvasHeight}></canvas>
+        <canvas bind:this={canvas} width={CANVAS_WIDTH} height={CANVAS_HEIGHT}></canvas>
 
         {#if gameOver}
             <div class="game-over-menu">
@@ -737,21 +659,9 @@
 </div>
 
 <style>
-  .game-container {
-    width: 644px; /* Fixed width to accommodate 640px canvas + 2px border on each side */
-    height: 484px; /* Fixed height to accommodate 480px canvas + 2px border on each side */
-    position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-  .error-message { color: red; margin-bottom: 10px; font-weight: bold; } /* This is for the {#if errorMsg && !ctx} only */
-
-  .game-window {
-    width: 100%;
-    height: 100%;
-    position: relative; /* For positioning buttons and canvas correctly */
-  }
+  .game-container { display: flex; justify-content: center; align-items: center; flex-direction: column; padding-top: 20px; }
+  .error-message { color: red; margin-bottom: 10px; font-weight: bold; }
+  .game-window { position: relative; /* For positioning buttons */ }
   .players-info {
     position: absolute;
     top: -25px; /* Position above the canvas */
@@ -761,40 +671,37 @@
     justify-content: space-between;
     padding: 0 15px; /* Padding on the sides */
     box-sizing: border-box; /* Include padding in width calculation */
-    color: var(--primary-text-color); /* Was orange */
-    font-size: 0.75rem; /* 12px. Adjusted from 0.9rem (14.4px) */
-    font-weight: bold; /* Keep bold for info emphasis */
+    color: orange;
+    font-size: 0.9rem;
+    font-weight: bold;
     z-index: 1; /* Ensure it's above the canvas */
     pointer-events: none; /* Prevent interaction */
   }
   .player { background-color: rgba(0,0,0,0.6); padding: 3px 6px; border-radius: 4px; }
   canvas {
-    display: block;
-    /* width and height are now set by HTML attributes */
-    background-color: var(--primary-text-color); /* Orange */
-    border: 2px solid var(--primary-bg-color); /* Thick black border */
-    box-shadow: none; /* Removed glow effect */
+    background-color: orange;
+    display: block; /* Remove extra space below canvas */
+    margin: 0 auto; /* Center canvas */
+    border: 3px solid black; /* Border around the game area */
+    box-shadow: none;
   }
   .exit-game-button {
     position: absolute;
-    top: 10px; /* Adjusted for better spacing with new border */
-    right: 10px; /* Adjusted for better spacing with new border */
+    top: 10px; /* Position near the top */
+    right: 10px; /* Position on the right */
     z-index: 10;
   }
   .exit-game-button button {
-    font-size: 0.75rem; /* 12px. Adjusted from 0.9rem (14.4px) */
-    padding: 0.4rem 0.8rem; /* Kept smaller padding */
-    background-color: var(--button-bg-color);
-    color: var(--button-text-color);
-    /* border: none; Inherits from global button style now which has border */
-    /* border-radius: 5px; Inherits from global button style (0px) */
+    font-size: 0.9rem;
+    padding: 0.4rem 0.8rem;
+    background-color: orange; /* Reddish color */
+    color:black;
+    border: none;
+    border-radius: 5px;
     cursor: pointer;
-    /* transition: background-color 0.2s ease; Inherits */
+    transition: background-color 0.2s ease;
   }
-   .exit-game-button button:hover { 
-     background-color: var(--button-hover-bg-color); 
-     /* border-color will also be handled by global if set */
-   }
+   .exit-game-button button:hover { background-color: red; }
 
   .game-over-menu {
     position: absolute;
@@ -804,17 +711,14 @@
     z-index: 10;
   }
   .game-over-menu button {
-    font-size: 1.25rem; /* 20px. Adjusted from 1.2rem (19.2px) */
-    padding: 0.8rem 1.5rem; /* Kept larger padding */
-    background-color: var(--button-bg-color);
-    color: var(--button-text-color);
-    /* border: none; Inherits */
-    /* border-radius: 5px; Inherits */
+    font-size: 1.2rem;
+    padding: 0.8rem 1.5rem;
+    background-color: orange; /* Blue color */
+    color: black;
+    border: none;
+    border-radius: 5px;
     cursor: pointer;
-    /* transition: background-color 0.2s ease; Inherits */
+    transition: background-color 0.2s ease;
   }
-  .game-over-menu button:hover { 
-    background-color: var(--button-hover-bg-color);
-    /* border-color will also be handled by global if set */
-  }
+  .game-over-menu button:hover { background-color: red; }
 </style>

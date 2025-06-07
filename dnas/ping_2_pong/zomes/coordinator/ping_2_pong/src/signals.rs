@@ -33,8 +33,8 @@ pub struct PaddleUpdatePayload {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BallUpdatePayload {
     pub game_id: ActionHash,
-    pub ball_x: u32,
-    pub ball_y: u32,
+    pub ball_x:  u32,
+    pub ball_y:  u32,
     pub ball_dx: i32,
     pub ball_dy: i32,
 }
@@ -118,8 +118,8 @@ pub fn send_paddle_update(payload: PaddleUpdatePayload) -> ExternResult<()> {
 pub fn send_ball_update(payload: BallUpdatePayload) -> ExternResult<()> {
     let signal = Signal::BallUpdate {
         game_id: payload.game_id.clone(),
-        ball_x: payload.ball_x,
-        ball_y: payload.ball_y,
+        ball_x:  payload.ball_x,
+        ball_y:  payload.ball_y,
         ball_dx: payload.ball_dx,
         ball_dy: payload.ball_dy,
     };
