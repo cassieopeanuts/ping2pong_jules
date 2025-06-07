@@ -27,16 +27,19 @@ pub fn receive_remote_signal(signal: Signal) -> ExternResult<()> {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PaddleUpdatePayload {
     pub game_id:  ActionHash,
-    pub paddle_y: u32, // Reverted from relative_paddle_y: f32
+    pub paddle_y: u32,
+    pub sender_canvas_height: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BallUpdatePayload {
     pub game_id: ActionHash,
-    pub ball_x: u32, // Reverted from relative_ball_x: f32
-    pub ball_y: u32, // Reverted from relative_ball_y: f32
+    pub ball_x: u32,
+    pub ball_y: u32,
     pub ball_dx: i32,
     pub ball_dy: i32,
+    pub sender_canvas_width: u32,
+    pub sender_canvas_height: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -108,7 +111,8 @@ pub fn send_paddle_update(payload: PaddleUpdatePayload) -> ExternResult<()> {
     let signal = Signal::PaddleUpdate {
         game_id:  payload.game_id.clone(),
         player:   agent_info()?.agent_latest_pubkey,
-        paddle_y: payload.paddle_y, // Reverted to use paddle_y
+        paddle_y: payload.paddle_y,
+        sender_canvas_height: payload.sender_canvas_height, // Added
     };
     emit_signal(&signal)?;
     broadcast_to_opponents(&payload.game_id, &signal)
@@ -118,10 +122,12 @@ pub fn send_paddle_update(payload: PaddleUpdatePayload) -> ExternResult<()> {
 pub fn send_ball_update(payload: BallUpdatePayload) -> ExternResult<()> {
     let signal = Signal::BallUpdate {
         game_id: payload.game_id.clone(),
-        ball_x: payload.ball_x, // Reverted
-        ball_y: payload.ball_y, // Reverted
+        ball_x: payload.ball_x,
+        ball_y: payload.ball_y,
         ball_dx: payload.ball_dx,
         ball_dy: payload.ball_dy,
+        sender_canvas_width: payload.sender_canvas_width,   // Added
+        sender_canvas_height: payload.sender_canvas_height, // Added
     };
     emit_signal(&signal)?;
     broadcast_to_opponents(&payload.game_id, &signal)
