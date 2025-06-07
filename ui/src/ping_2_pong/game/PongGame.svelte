@@ -621,11 +621,18 @@
     // Display Loading or Error message if game state isn't loaded yet
     // Use loadingMsg first, then errorMsg if initialization failed
     if (!liveGame && !gameOver) { // Only show loading/error if game hasn't started or finished
-        ctx.fillStyle = "#000000"; /* Black text on orange background */ ctx.font = "24px 'Press Start 2P', monospace"; ctx.textAlign = "center"; /* Adjusted from 30px */
+        ctx.fillStyle = "#000000"; /* Black text on orange background */
+        ctx.font = "24px 'Press Start 2P', monospace";
+        ctx.textAlign = "center";
         ctx.fillText(errorMsg || loadingMsg || "Loading...", canvasWidth / 2, canvasHeight / 2);
-        // Keep requesting frames only if still loading (no error and not game over)
-        if (!errorMsg && loadingMsg) animationFrameId = requestAnimationFrame(draw);
-        return; // Don't draw game elements if not loaded/ready
+
+        // Keep requesting frames if there's an error message to display,
+        // OR if there's a loading message (and no game over yet).
+        // This ensures the loop continues in error states or loading states.
+        if (errorMsg || (loadingMsg && !gameOver)) { // Modified condition
+            animationFrameId = requestAnimationFrame(draw);
+        }
+        return; // Don't draw game elements if not loaded/ready or error
     }
 
     // Draw Game Elements (only if liveGame is set)
