@@ -72,7 +72,6 @@ pub enum Signal {
         game_id: ActionHash,
         player: AgentPubKey,
         paddle_y: u32,
-        sender_canvas_height: u32, // Added field
     },
     BallUpdate {
         game_id: ActionHash,
@@ -80,8 +79,6 @@ pub enum Signal {
         ball_y: u32,
         ball_dx: i32,
         ball_dy: i32,
-        sender_canvas_width: u32,  // Added field
-        sender_canvas_height: u32, // Added field
     },
     ScoreUpdate {
         game_id: ActionHash,

@@ -270,7 +270,6 @@
     const payload = {
         game_id: gameId, // The original ActionHash identifying the game
         paddle_y: absoluteY,
-        sender_canvas_height: canvasHeight,
     };
 
     try {
@@ -300,8 +299,6 @@
         ball_y: absoluteY,
         ball_dx: Math.round(ball.dx),
         ball_dy: Math.round(ball.dy),
-        sender_canvas_width: canvasWidth,
-        sender_canvas_height: canvasHeight,
     };
 
     try {
@@ -346,10 +343,7 @@
         switch (s.type) {
           case "PaddleUpdate":
             if (encodeHashToBase64(s.player) !== meB64) {
-              // s is the signal payload, e.g., s.paddle_y, s.sender_canvas_height
-              const senderH = s.sender_canvas_height;
-              const relY = senderH > 0 ? s.paddle_y / senderH : 0.5;
-              const localAbsY = relY * canvasHeight; // receiver's canvasHeight
+              const localAbsY = s.paddle_y; // Directly use paddle_y
 
               if (isPlayer1) { // This client is P1, signal is about P2's paddle
                 paddle2Y = localAbsY;
@@ -361,15 +355,8 @@
 
           case "BallUpdate":
             if (!isPlayer1) {
-              // s is the signal payload, e.g., s.ball_x, s.sender_canvas_width
-              const senderW = s.sender_canvas_width;
-              const senderH = s.sender_canvas_height;
-
-              const relX = senderW > 0 ? s.ball_x / senderW : 0.5;
-              const relY = senderH > 0 ? s.ball_y / senderH : 0.5;
-
-              ball.x = relX * canvasWidth;  // receiver's canvasWidth
-              ball.y = relY * canvasHeight; // receiver's canvasHeight
+              ball.x = s.ball_x; // Directly use ball_x
+              ball.y = s.ball_y; // Directly use ball_y
               ball.dx = s.ball_dx;
               ball.dy = s.ball_dy;
             }
