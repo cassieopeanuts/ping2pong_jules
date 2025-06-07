@@ -29,13 +29,12 @@
   const PADDLE_HEIGHT = 100;
   const BALL_RADIUS = 10;
   const WINNING_SCORE = 10;
-  const PADDLE_SPEED = 18;
+  const PADDLE_SPEED = 25;
   const UPDATE_INTERVAL = 50; // ms interval for sending signal updates
 
   // Reactive Canvas Dimensions
-  let canvasWidth: number = 640; // Initial default, will be updated
-  let canvasHeight: number = 480; // Initial default, will be updated
-  let gameContainerEl: HTMLDivElement; // To bind to the .game-container div
+  const canvasWidth: number = 640; // Fixed width
+  const canvasHeight: number = 480; // Fixed height
 
   // Component State
   let gameRecord: Record | undefined; // Stores the latest fetched Holochain record for the game
@@ -674,35 +673,23 @@
     }
   }
 
-  function resizeCanvas() {
-    if (!canvas) return;
-
-    const newWidth = canvas.clientWidth;
-    const newHeight = canvas.clientHeight;
-
-    canvasWidth = newWidth;
-    canvasHeight = newHeight;
-
-    canvas.width = newWidth;
-    canvas.height = newHeight;
-
-    // This might need more sophisticated logic if game is in progress
-    // For now, it re-centers paddles based on new height.
-    paddle1Y = canvasHeight / 2 - PADDLE_HEIGHT / 2;
-    paddle2Y = canvasHeight / 2 - PADDLE_HEIGHT / 2;
-
-    if (ctx) {
-      draw();
-    }
-  }
-
   // --- Component Lifecycle ---
   onMount(async () => {
     client = await appClientContext.getClient(); // Initialize Holochain client
     if (canvas) {
         ctx = canvas.getContext("2d")!;
-        resizeCanvas(); // Set initial size and draw
-        window.addEventListener('resize', resizeCanvas);
+        // Set initial size and draw
+        // The canvas dimensions are now reactive, so direct manipulation
+        // of canvas.width and canvas.height should trigger updates.
+        // We rely on CSS to size the canvas element, and then read its
+        // clientWidth/clientHeight in the draw() or a dedicated setup function.
+        // Canvas dimensions are now fixed.
+        // paddle1Y and paddle2Y are already initialized using these fixed dimensions.
+        // Ball position is also initialized using these fixed dimensions.
+        // The canvas element in the template will bind to these fixed dimensions.
+        if (ctx) {
+          draw(); // Initial draw
+        }
     } else {
         console.error("Canvas element not found on mount.");
         errorMsg = "Failed to initialize canvas.";
@@ -723,12 +710,11 @@
     cancelAnimationFrame(animationFrameId);
     window.removeEventListener("keydown", handleKeyDown);
     if (unsubscribeFromSignals) unsubscribeFromSignals(); // Unsubscribe from Holochain signals
-    window.removeEventListener('resize', resizeCanvas); // Add this
   });
 
 </script>
 
-<div class="game-container" bind:this={gameContainerEl}>
+<div class="game-container">
     {#if errorMsg && !ctx} <p class="error-message">Error: {errorMsg}</p> {/if}
 
     <div class="game-window">
@@ -737,7 +723,7 @@
             <div class="player player2">P2: {#if liveGame?.player_2}{truncatePubkey(liveGame.player_2)}{:else}Waiting...{/if}</div>
         </div>
 
-        <canvas bind:this={canvas}></canvas> <!-- Removed width/height attributes -->
+        <canvas bind:this={canvas} width={canvasWidth} height={canvasHeight}></canvas>
 
         {#if gameOver}
             <div class="game-over-menu">
@@ -753,13 +739,12 @@
 
 <style>
   .game-container {
-    width: 80%;
-    height: 80%;
+    width: 644px; /* Fixed width to accommodate 640px canvas + 2px border on each side */
+    height: 484px; /* Fixed height to accommodate 480px canvas + 2px border on each side */
     position: relative;
-    display: flex; /* Added to help center .game-window if needed, though .game-window is 100% */
+    display: flex;
     justify-content: center;
     align-items: center;
-    /* padding-top: 20px; */ /* Removed, parent (.route-content-wrapper) has padding */
   }
   .error-message { color: red; margin-bottom: 10px; font-weight: bold; } /* This is for the {#if errorMsg && !ctx} only */
 
@@ -786,10 +771,8 @@
   .player { background-color: rgba(0,0,0,0.6); padding: 3px 6px; border-radius: 4px; }
   canvas {
     display: block;
-    width: 100%;
-    height: 100%;
+    /* width and height are now set by HTML attributes */
     background-color: var(--primary-text-color); /* Orange */
-    /* margin: 0 auto; */ /* No longer needed if .game-window handles centering/sizing */
     border: 2px solid var(--primary-bg-color); /* Thick black border */
     box-shadow: none; /* Removed glow effect */
   }
