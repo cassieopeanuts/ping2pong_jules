@@ -150,7 +150,7 @@ pub fn create_score(input: CreateScoreInput) -> ExternResult<CreateScoreOutput> 
     debug!("[score.rs] create_score: Successfully created score action: {:?}, write duration: {} ms", score_action_hash, write_duration_ms);
     Ok(CreateScoreOutput {
         score_hash: score_action_hash,
-        write_duration_ms,
+        write_duration_ms: write_duration_ms.try_into().unwrap_or(u64::MAX),
     })
 }
 
@@ -173,7 +173,7 @@ pub fn get_score_and_measure_time(score_hash: ActionHash) -> ExternResult<GetSco
     debug!("[score.rs] get_score_and_measure_time: Fetched score record, read duration: {} ms", read_duration_ms);
     Ok(GetScoreOutput {
         score_record: record,
-        read_duration_ms,
+        read_duration_ms: read_duration_ms.try_into().unwrap_or(u64::MAX),
     })
 }
 

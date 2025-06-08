@@ -20,49 +20,49 @@ pub fn grant_remote_signal_cap() -> ExternResult<()> {
 /// ──────────────────────── local re-emit ───────────────────────
 #[hdk_extern]
 pub fn receive_remote_signal(signal: Signal) -> ExternResult<()> {
-    let received_at = sys_time()?;
-    let sent_at_str: String;
+    // The received_at time is captured at the beginning of the function.
+    // For latency calculation, it's better to get it just before processing each relevant signal,
+    // but for simplicity and consistency with previous logic, we can use a single `received_at`
+    // if the processing within the match arms is quick.
+    // However, the instruction implies fetching it fresh for each calculation block.
+    // Let's adhere to that for precision.
 
     match &signal {
         Signal::PaddleUpdate { sent_at, .. } => {
-            sent_at_str = format!("{:?}", sent_at);
-            let latency_duration = received_at
-                .checked_sub(sent_at.clone())
-                .ok_or(wasm_error!(WasmErrorInner::Guest(
-                    "Timestamp underflow for PaddleUpdate".into()
+            let received_at_for_signal = sys_time()?;
+            let duration_since_sent = received_at_for_signal.sub(*sent_at)
+                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                    format!("Timestamp underflow for PaddleUpdate: sent_at {:?} may be later than received_at {:?} or other issue.", sent_at, received_at_for_signal)
                 )))?;
-            let latency_ms = latency_duration.as_micros() / 1000;
-            debug!("Signal latency for PaddleUpdate: {} ms (sent: {}, received: {:?})", latency_ms, sent_at_str, received_at);
+            let latency_ms = (duration_since_sent.as_micros() / 1000) as u64;
+            debug!("Signal latency (PaddleUpdate): {} ms. Sent: {:?}, Received: {:?}", latency_ms, sent_at, received_at_for_signal);
         }
         Signal::BallUpdate { sent_at, .. } => {
-            sent_at_str = format!("{:?}", sent_at);
-            let latency_duration = received_at
-                .checked_sub(sent_at.clone())
-                .ok_or(wasm_error!(WasmErrorInner::Guest(
-                    "Timestamp underflow for BallUpdate".into()
+            let received_at_for_signal = sys_time()?;
+            let duration_since_sent = received_at_for_signal.sub(*sent_at)
+                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                    format!("Timestamp underflow for BallUpdate: sent_at {:?} may be later than received_at {:?} or other issue.", sent_at, received_at_for_signal)
                 )))?;
-            let latency_ms = latency_duration.as_micros() / 1000;
-            debug!("Signal latency for BallUpdate: {} ms (sent: {}, received: {:?})", latency_ms, sent_at_str, received_at);
+            let latency_ms = (duration_since_sent.as_micros() / 1000) as u64;
+            debug!("Signal latency (BallUpdate): {} ms. Sent: {:?}, Received: {:?}", latency_ms, sent_at, received_at_for_signal);
         }
         Signal::ScoreUpdate { sent_at, .. } => {
-            sent_at_str = format!("{:?}", sent_at);
-            let latency_duration = received_at
-                .checked_sub(sent_at.clone())
-                .ok_or(wasm_error!(WasmErrorInner::Guest(
-                    "Timestamp underflow for ScoreUpdate".into()
+            let received_at_for_signal = sys_time()?;
+            let duration_since_sent = received_at_for_signal.sub(*sent_at)
+                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                    format!("Timestamp underflow for ScoreUpdate: sent_at {:?} may be later than received_at {:?} or other issue.", sent_at, received_at_for_signal)
                 )))?;
-            let latency_ms = latency_duration.as_micros() / 1000;
-            debug!("Signal latency for ScoreUpdate: {} ms (sent: {}, received: {:?})", latency_ms, sent_at_str, received_at);
+            let latency_ms = (duration_since_sent.as_micros() / 1000) as u64;
+            debug!("Signal latency (ScoreUpdate): {} ms. Sent: {:?}, Received: {:?}", latency_ms, sent_at, received_at_for_signal);
         }
         Signal::GameOver { sent_at, .. } => {
-            sent_at_str = format!("{:?}", sent_at);
-            let latency_duration = received_at
-                .checked_sub(sent_at.clone())
-                .ok_or(wasm_error!(WasmErrorInner::Guest(
-                    "Timestamp underflow for GameOver".into()
+            let received_at_for_signal = sys_time()?;
+            let duration_since_sent = received_at_for_signal.sub(*sent_at)
+                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                    format!("Timestamp underflow for GameOver: sent_at {:?} may be later than received_at {:?} or other issue.", sent_at, received_at_for_signal)
                 )))?;
-            let latency_ms = latency_duration.as_micros() / 1000;
-            debug!("Signal latency for GameOver: {} ms (sent: {}, received: {:?})", latency_ms, sent_at_str, received_at);
+            let latency_ms = (duration_since_sent.as_micros() / 1000) as u64;
+            debug!("Signal latency (GameOver): {} ms. Sent: {:?}, Received: {:?}", latency_ms, sent_at, received_at_for_signal);
         }
         // For other signals that don't have `sent_at`, we just emit them
         _ => {}

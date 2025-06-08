@@ -230,15 +230,26 @@ pub fn create_game_stats(stats: GameStats) -> ExternResult<ActionHash> {
     }
 
     // Ensure players in GameStats match players in the Game entry
-    if stats.player_1 != game_entry.player_1 || stats.player_2 != game_entry.player_2.clone().unwrap_or_default() {
-         // Assuming player_2 in GameStats will not be default if it was a 2-player game.
-         // If game_entry.player_2 is None, then stats.player_2 should also reflect that (e.g. be a default AgentPubKey or match player_1 if it's a solo game concept)
-         // For typical 2-player games, this check is crucial.
-        warn!("[statistics.rs] create_game_stats: Player mismatch. Game P1: {:?}, Stats P1: {:?}. Game P2: {:?}, Stats P2: {:?}",
-            game_entry.player_1, stats.player_1, game_entry.player_2, stats.player_2);
-        return Err(wasm_error!(WasmErrorInner::Guest(
-            "Player mismatch between GameStats and the actual Game entry".into()
-        )));
+    if stats.player_1 != game_entry.player_1 {
+        return Err(wasm_error!(WasmErrorInner::Guest("Player 1 in stats does not match game record.".into())));
+    }
+
+    match &game_entry.player_2 {
+        Some(p2_in_game_record) => {
+            // Make sure to compare AgentPubKey with AgentPubKey
+            if stats.player_2 != *p2_in_game_record {
+                return Err(wasm_error!(WasmErrorInner::Guest("Player 2 in stats does not match game record.".into())));
+            }
+        }
+        None => {
+            // GameStats requires a player_2 (it's not Option<AgentPubKey> in the coordinator struct definition).
+            // So, if the game record from integrity doesn't have a player_2, it's a mismatch.
+            // This case implies that the game was perhaps a solo game or player_2 was never set,
+            // yet the GameStats struct being passed in requires a player_2.
+            // Depending on game logic, one might allow stats.player_2 to be a "dummy" or equal to player_1 if game_entry.player_2 is None.
+            // However, the current strict definition of GameStats (non-optional player_2) means this is an error.
+            return Err(wasm_error!(WasmErrorInner::Guest("Game record does not have a Player 2, but stats entry requires one.".into())));
+        }
     }
 
     // Convert coordinator GameStats to integrity GameStats
