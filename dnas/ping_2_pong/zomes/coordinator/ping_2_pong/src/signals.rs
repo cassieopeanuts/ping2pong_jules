@@ -47,6 +47,11 @@ pub struct GameOverPayload {
     pub score2:  u32,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GameAbandonedPayload {
+    pub game_id: ActionHash,
+}
+
 /// Return the `Record` at the *tip* of an update chain
 fn latest_record(original: &ActionHash) -> ExternResult<Record> {
     let mut current = original.clone();
@@ -111,6 +116,20 @@ pub fn send_paddle_update(payload: PaddleUpdatePayload) -> ExternResult<()> {
         paddle_y: payload.paddle_y,
     };
     emit_signal(&signal)?;
+    broadcast_to_opponents(&payload.game_id, &signal)
+}
+
+#[hdk_extern]
+pub fn send_game_abandoned_signal(payload: GameAbandonedPayload) -> ExternResult<()> {
+    let abandoned_by_player = agent_info()?.agent_latest_pubkey;
+    let signal = Signal::GameAbandoned { // Ensure Signal::GameAbandoned matches the enum in lib.rs
+        game_id: payload.game_id.clone(),
+        abandoned_by_player,
+    };
+    
+    // emit_signal(&signal)?; // Optional: emit locally for the abandoner
+    
+    // Broadcast to the opponent
     broadcast_to_opponents(&payload.game_id, &signal)
 }
 

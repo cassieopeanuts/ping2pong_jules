@@ -8,14 +8,11 @@ pub mod statistics;
 pub mod utils;
 pub mod signals;
 pub mod invitations;
-pub mod chat;
 
 use hdk::prelude::*;
 // Use integrity crate types (EntryTypes, LinkTypes)
 use ping_2_pong_integrity::*;
 
-// Import Timestamp and AgentPubKey for ChatMessagePayload
-use hdk::prelude::{Timestamp, AgentPubKey};
 
 /// ---------- 1. grant the capability on startup ----------
 #[hdk_extern]
@@ -35,16 +32,9 @@ fn init(_: ()) -> ExternResult<InitCallbackResult> {
     Ok(InitCallbackResult::Pass)
 }
 
-// ChatMessagePayload struct definition
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ChatMessagePayload {
-    pub timestamp: Timestamp,
-    pub sender: AgentPubKey,
-    pub content: String,
-}
 
 // Signal enum definition
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum Signal {
     // Standard Holochain signals
@@ -89,7 +79,10 @@ pub enum Signal {
         score1: u32,
         score2: u32,
     },
-    GlobalChatMessage(ChatMessagePayload),
+    GameAbandoned {
+        game_id: ActionHash,
+        abandoned_by_player: AgentPubKey,
+    },
 }
 
 // post_commit hook (no changes needed here)
@@ -177,6 +170,3 @@ fn get_entry_for_action(action_hash: &ActionHash) -> ExternResult<Option<EntryTy
          Err(e) => { error!("Failed to deserialize entry for action {:?}: {:?}", action_hash, e); Err(e.into()) }
      }
 }
-
-// REMOVED Generic send_signal function
-

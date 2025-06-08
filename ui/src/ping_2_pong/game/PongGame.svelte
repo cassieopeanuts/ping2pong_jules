@@ -9,6 +9,8 @@
   // Import local types including the specific signal structures if needed for receiving
   // Note: Signal types are used here for clarity but aren't strictly required if only checking `signalPayload.type`
   import type { Game, Score, GameStatus, UpdateGameInput, PaddleUpdateSignal, BallUpdateSignal, GameOverSignal, ScoreUpdateSignal } from "../ping_2_pong/types";
+  import { getOrFetchProfile, type DisplayProfile } from "../../stores/profilesStore";
+  import { HOLOCHAIN_ROLE_NAME, HOLOCHAIN_ZOME_NAME } from "../../holochainConfig";
 
   // Create dispatcher to send events up to the parent (App.svelte)
   const dispatch = createEventDispatcher();
@@ -44,6 +46,10 @@
   let winner: AgentPubKey | null = null; // Stores the winner's public key if game is over
   let errorMsg: string | null = null; // Stores any error message for display
   let loadingMsg: string | null = "Initializing game..."; // Loading message
+
+  // Player Profiles
+  let player1Profile: DisplayProfile | null = null;
+  let player2Profile: DisplayProfile | null = null;
 
   // Canvas & Animation
   let canvas: HTMLCanvasElement; // Reference to the canvas element
@@ -165,6 +171,14 @@
           // We know player_2 exists because we checked for it in fetchGameState
           isPlayer2 = encodeHashToBase64(liveGame.player_2!) === myPubKeyB64;
           console.log(`[PongGame initializeGame] Player role identified: isPlayer1=${isPlayer1}, isPlayer2=${isPlayer2}`);
+
+          // Fetch profiles
+          if (liveGame.player_1) {
+            getOrFetchProfile(client, liveGame.player_1).then(profile => player1Profile = profile);
+          }
+          if (liveGame.player_2) {
+            getOrFetchProfile(client, liveGame.player_2).then(profile => player2Profile = profile);
+          }
 
           // Initialize positions (only if score is 0)
           if (score.player1 === 0 && score.player2 === 0) {
@@ -472,7 +486,12 @@
             // Call the backend zome function to commit the update
             await client.callZome({ cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong", fn_name: "update_game", payload: updatePayload });
             console.log("Game status updated on DHT.");
-       } catch (e) { console.error("Error updating game status:", e); errorMsg="Failed to update game status."; /* Continue anyway */ }
+       } catch (e) {
+            console.error("Error updating game status:", e);
+            errorMsg = `Failed to update game status: ${(e as Error).message}`; // Set a more informative error message
+            // Ensure UI updates if errorMsg is used for display
+            return; // EXIT the function if status update fails
+       }
 
        // 2. Save Final Scores for both players on the DHT
        try {
@@ -529,8 +548,31 @@
 
   // --- NEW: Function to handle exit button click ---
   // Dispatches an event to App.svelte to handle navigation and state cleanup
-  function requestExit() {
-      console.log("PongGame: Dispatching exit-game event");
+  async function requestExit() { // Make function async
+      console.log("PongGame: Requesting to abandon game and dispatching exit-game event");
+      
+      if (!client || !gameId) {
+          console.error("PongGame: Client or gameId not available to abandon game.");
+          // Still dispatch to exit UI, as backend call isn't possible
+          dispatch("exit-game");
+          return;
+      }
+
+      try {
+          console.log(`PongGame: Calling abandon_game for gameId: ${encodeHashToBase64(gameId)}`);
+          await client.callZome({
+              cap_secret: null,
+              role_name: HOLOCHAIN_ROLE_NAME,
+              zome_name: HOLOCHAIN_ZOME_NAME,
+              fn_name: "abandon_game",
+              payload: gameId, // Pass the ActionHash directly
+          });
+          console.log("PongGame: abandon_game zome call successful.");
+      } catch (e) {
+          console.error("PongGame: Error calling abandon_game zome function:", e);
+          // Log error, but continue to dispatch 'exit-game' to allow UI to exit
+      }
+      
       dispatch("exit-game"); // Dispatch the custom event
   }
 
@@ -640,8 +682,8 @@
 
     <div class="game-window">
         <div class="players-info">
-            <div class="player player1">P1: {#if liveGame?.player_1}{truncatePubkey(liveGame.player_1)}{:else}Loading...{/if}</div>
-            <div class="player player2">P2: {#if liveGame?.player_2}{truncatePubkey(liveGame.player_2)}{:else}Waiting...{/if}</div>
+            <div class="player player1">P1: {#if player1Profile?.nickname}{player1Profile.nickname}{:else if liveGame?.player_1}{truncatePubkey(liveGame.player_1)}{:else}Loading...{/if}</div>
+            <div class="player player2">P2: {#if player2Profile?.nickname}{player2Profile.nickname}{:else if liveGame?.player_2}{truncatePubkey(liveGame.player_2)}{:else}Waiting...{/if}</div>
         </div>
 
         <canvas bind:this={canvas} width={CANVAS_WIDTH} height={CANVAS_HEIGHT}></canvas>

@@ -7,6 +7,7 @@ pub enum GameStatus {
     Waiting,    // Waiting for Player 2 or matchmaking
     InProgress, // Game actively being played
     Finished,   // Game concluded, score recorded/recordable
+    Abandoned,  // Game terminated by a player exiting
     // Canceled? // Optional status
 }
 

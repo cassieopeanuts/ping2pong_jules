@@ -556,6 +556,84 @@ pub fn get_deleted_games_for_player_1(player_1: AgentPubKey) -> ExternResult<Vec
 }
 
 #[hdk_extern]
+pub fn abandon_game(original_game_hash: ActionHash) -> ExternResult<Record> {
+    debug!("[game.rs] abandon_game: Called for game_id: {:?}", original_game_hash);
+
+    let agent_info = agent_info()?;
+    let caller_pubkey = agent_info.agent_latest_pubkey.clone();
+
+    // 1. Get the latest state of the game record being abandoned
+    let latest_game_record_option = get_latest_game(original_game_hash.clone())?;
+    let latest_game_record = match latest_game_record_option {
+        Some(record) => record,
+        None => return Err(wasm_error!(WasmErrorInner::Guest(format!(
+            "Cannot abandon game: Game record not found for original hash {:?}", original_game_hash
+        )))),
+    };
+
+    let previous_action_hash = latest_game_record.action_hashed().hash.clone();
+    let entry = latest_game_record.entry().as_option()
+        .ok_or(wasm_error!(WasmErrorInner::Guest("Latest game record for abandon has no entry".to_string())))?
+        .clone();
+    
+    let mut current_game = match Game::try_from(entry) { // Game from ping_2_pong_integrity
+        Ok(game) => game,
+        Err(e) => return Err(wasm_error!(WasmErrorInner::Guest(format!("Failed to deserialize game entry: {:?}", e)))),
+    };
+
+    // 2. Validate if abandoning is allowed
+    if current_game.game_status != GameStatus::InProgress { // GameStatus from ping_2_pong_integrity::game
+        return Err(wasm_error!(WasmErrorInner::Guest(format!(
+            "Cannot abandon game: Game status is not 'InProgress', it's {:?}", current_game.game_status
+        ))));
+    }
+
+    // Ensure the caller is one of the players in the game
+    if caller_pubkey != current_game.player_1 && current_game.player_2.as_ref() != Some(&caller_pubkey) {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Cannot abandon game: Caller is not a participant in this game".into()
+        )));
+    }
+
+    // 3. Prepare the updated game state
+    current_game.game_status = GameStatus::Abandoned; // Set status to Abandoned
+
+    // 4. Commit the update action to the DHT
+    debug!("[game.rs] abandon_game: Updating game entry {:?} to set status Abandoned", previous_action_hash);
+    let update_action_hash = update_entry(previous_action_hash.clone(), &current_game)?;
+    debug!("[game.rs] abandon_game: Game entry updated with action hash {:?}", update_action_hash);
+
+    // 5. Create the GameUpdates link: Original Game Hash -> Update Action Hash
+    create_link(
+        original_game_hash.clone(),
+        update_action_hash.clone(),
+        LinkTypes::GameUpdates, // LinkTypes from ping_2_pong_integrity
+        (),
+    )?;
+    debug!("[game.rs] abandon_game: Created GameUpdates link from {:?} to {:?}", original_game_hash, update_action_hash);
+
+    // Send signal to the other player
+    // The original_game_hash is the game_id the signal function expects in its payload
+    match crate::signals::send_game_abandoned_signal(crate::signals::GameAbandonedPayload { game_id: original_game_hash.clone() }) {
+        Ok(_) => debug!("[game.rs] abandon_game: GameAbandoned signal sent successfully for game: {:?}", original_game_hash),
+        Err(e) => {
+            // Log the error but don't fail the whole abandon_game operation,
+            // as the game state itself is already updated to Abandoned.
+            // The primary goal of abandoning (freeing players) is achieved.
+            error!("[game.rs] abandon_game: Failed to send GameAbandoned signal for game {:?}: {:?}", original_game_hash, e);
+        }
+    }
+
+    // 6. Fetch and return the latest record (representing the update action)
+    let final_record = get(update_action_hash.clone(), GetOptions::default())?
+        .ok_or(wasm_error!(WasmErrorInner::Guest(format!(
+            "Could not find the updated Game record after abandon: {:?}", update_action_hash
+        ))))?;
+
+    Ok(final_record)
+}
+
+#[hdk_extern]
 pub fn get_games_for_player_2(player_2: AgentPubKey) -> ExternResult<Vec<Link>> {
     get_links(GetLinksInputBuilder::try_new(player_2, LinkTypes::Player2ToGames)?.build())
 }

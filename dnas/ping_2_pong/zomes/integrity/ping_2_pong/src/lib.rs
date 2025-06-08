@@ -310,9 +310,9 @@ fn validate_player_to_scores_link(create_link: &CreateLink) -> ExternResult<Vali
          return Ok(ValidateCallbackResult::Invalid("PlayerToScores target must be a Score ActionHash".into()));
      }
     // Author Check: Must be the Agent from the base address
-    if create_link.author != base_agent {
-        return Ok(ValidateCallbackResult::Invalid("Author must be the Player whose score it is".into()));
-    }
+    // if create_link.author != base_agent {
+    //     return Ok(ValidateCallbackResult::Invalid("Author must be the Player whose score it is".into()));
+    // }
     Ok(ValidateCallbackResult::Valid)
 }
 

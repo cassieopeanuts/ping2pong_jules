@@ -8,13 +8,14 @@
   import { derived, get } from "svelte/store"; // Import get from svelte/store
   import { clientContext } from "./contexts";
   import { currentRoute } from "./stores/routeStore";
-  import { playerProfile } from "./stores/playerProfile";
+  import { playerProfile, checkAndLoadExistingProfile } from "./stores/playerProfile";
   import { currentGame } from "./stores/currentGame";
   // Import invitation store and helpers
   import { invitations, addInvitation, removeInvitation } from "./stores/invitationStore";
+  import { getOrFetchProfile, type DisplayProfile } from "./stores/profilesStore";
   // Import the specific signal type
   // MODIFIED: Added GlobalChatMessageSignal
-  import type { GameInvitationSignal, GameStartedSignal, GlobalChatMessageSignal } from "./ping_2_pong/ping_2_pong/types"; // Adjust path if necessary
+  import type { GameInvitationSignal, GameStartedSignal, GlobalChatMessageSignal, GameAbandonedSignal } from "./ping_2_pong/ping_2_pong/types"; // Adjust path if necessary
   // Import chat store function
   import { addChatMessage } from "./stores/chatStore"; // Adjust path if necessary
   // Import utility functions
@@ -30,6 +31,7 @@
   import PongGame from "./ping_2_pong/game/PongGame.svelte";
   import StatisticsDashboard from "./ping_2_pong/game/StatisticsDashboard.svelte";
   import InvitationPopup from "./ping_2_pong/game/InvitationPopup.svelte"; // Adjust path if needed
+  import OpponentLeftPopup from "./ping_2_pong/game/OpponentLeftPopup.svelte";
 
   // Define the UnsubscribeFunction type locally
   type UnsubscribeFunction = () => void;
@@ -42,6 +44,10 @@
   let unsubscribeFromSignals: UnsubscribeFunction | undefined; // Use the locally defined type
   let invitationError: string | null = null; // Specific for invitation errors
   let dashboardComponent: DashboardType; // Variable to hold Dashboard instance
+
+  let showOpponentLeftPopup = false;
+  let opponentWhoLeftNickname: string | null = null;
+  let opponentWhoLeftAgentKeyB64: string | null = null;
 
   // Holochain Client Setup
   const appClientContext = {
@@ -181,6 +187,37 @@
                 // If neither matches, then it's malformed
                 console.warn("[App.svelte handleSignal] Malformed GlobalChatMessage signal received or sender/timestamp issue (unhandled format):", rawSignal);
             }
+          } else if (actualSignal.type === "GameAbandoned") {
+              console.log("[App.svelte handleSignal] Processing GameAbandoned signal:", actualSignal);
+              const { game_id: abandonedGameId, abandoned_by_player } = actualSignal as GameAbandonedSignal; // Cast to the new type
+
+              const currentLocalGameId = get(currentGame);
+              if (currentLocalGameId && abandonedGameId && encodeHashToBase64(abandonedGameId) === encodeHashToBase64(currentLocalGameId)) {
+                  console.log(`[App.svelte handleSignal] Current game ${encodeHashToBase64(currentLocalGameId)} was abandoned by ${encodeHashToBase64(abandoned_by_player)}. Showing popup.`);
+            
+                  // Fetch profile of the player who abandoned
+                  getOrFetchProfile(client, abandoned_by_player).then(profile => {
+                      if (profile && profile.nickname) {
+                          opponentWhoLeftNickname = profile.nickname;
+                      } else {
+                          opponentWhoLeftNickname = truncatePubkey(abandoned_by_player); // Fallback to truncated pubkey
+                      }
+                      opponentWhoLeftAgentKeyB64 = encodeHashToBase64(abandoned_by_player);
+                      showOpponentLeftPopup = true;
+                  }).catch(profileError => {
+                      console.error("[App.svelte handleSignal] Error fetching profile for opponent who left:", profileError);
+                      opponentWhoLeftNickname = truncatePubkey(abandoned_by_player); // Fallback
+                      opponentWhoLeftAgentKeyB64 = encodeHashToBase64(abandoned_by_player);
+                      showOpponentLeftPopup = true;
+                  });
+
+                  currentGame.set(null);
+                  currentRoute.set("dashboard");
+                  invitations.set([]); 
+              } else {
+                  // This log is important for debugging signals for other games or if self-abandonment signal is received
+                  console.log(`[App.svelte handleSignal] Received GameAbandoned signal for game ${abandonedGameId ? encodeHashToBase64(abandonedGameId) : 'unknown'}, but it does not match current game ${currentLocalGameId ? encodeHashToBase64(currentLocalGameId) : 'none'}. Or I was the one who abandoned (UI handles this separately).`);
+              }
           }
           else {
               console.warn(`[App.svelte handleSignal] Received unhandled signal type in payload: ${actualSignal.type}`, actualSignal);
@@ -276,10 +313,19 @@
       if (client) {
           unsubscribeFromSignals = client.on("signal", handleSignal);
           // console.log("App.svelte signal listener attached."); // Info
+
+          // ---- ADD THIS LINE ----
+          await checkAndLoadExistingProfile(client);
+          // ---- END ADDITION ----
       }
       presenceIntervalId = setInterval(publishPresence, 15000);
-    } catch (e) { console.error("Failed to initialize Holochain client:", e); error = e as HolochainError;}
-    finally { loading = false; }
+    } catch (e) { 
+      console.error("Failed to initialize Holochain client or load profile:", e); // Modified error message
+      error = e as HolochainError;
+    }
+    finally { 
+      loading = false; 
+    }
   });
 
   onDestroy(() => {
@@ -360,6 +406,14 @@
     {:else}
        <Dashboard on:join-game={handleJoinGame} bind:this={dashboardComponent} />
        {() => { if (route !== 'dashboard') { console.warn(`Unknown route: ${route}, defaulting.`); setTimeout(() => currentRoute.set('dashboard'), 0); } return ''; }}
+    {/if}
+
+    {#if showOpponentLeftPopup && opponentWhoLeftNickname && opponentWhoLeftAgentKeyB64}
+      <OpponentLeftPopup
+        opponentNickname={opponentWhoLeftNickname}
+        opponentAgentKeyB64={opponentWhoLeftAgentKeyB64}
+        on:dismissed={() => showOpponentLeftPopup = false}
+      />
     {/if}
   </main>
 {/if}
