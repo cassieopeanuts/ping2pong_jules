@@ -310,7 +310,7 @@ fn validate_player_updates_link(create_link: &CreateLink) -> ExternResult<Valida
 
 fn validate_player_to_scores_link(create_link: &CreateLink) -> ExternResult<ValidateCallbackResult> {
     // Base Check: Must be an AgentPubKey
-     let base_agent = create_link.base_address.clone().into_agent_pub_key()
+     let _base_agent = create_link.base_address.clone().into_agent_pub_key() // Changed to _base_agent
          .ok_or(wasm_error!(WasmErrorInner::Guest("PlayerToScores base must be an AgentPubKey".into())))?;
     // Target Check: Must be ActionHash
     if create_link.target_address.clone().into_action_hash().is_none() {

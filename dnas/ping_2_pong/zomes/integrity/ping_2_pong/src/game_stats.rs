@@ -2,7 +2,7 @@ use hdk::prelude::*;
 use holo_hash::{ActionHash, AgentPubKey};
 
 #[hdk_entry_helper]
-#[derive(Clone)]
+#[derive(Clone, PartialEq)] // Added PartialEq
 pub struct GameStats {
     pub game_id: ActionHash,
     pub player_1: AgentPubKey,
