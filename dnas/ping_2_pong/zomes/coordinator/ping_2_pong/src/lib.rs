@@ -8,11 +8,14 @@ pub mod statistics;
 pub mod utils;
 pub mod signals;
 pub mod invitations;
+pub mod chat;
 
 use hdk::prelude::*;
 // Use integrity crate types (EntryTypes, LinkTypes)
 use ping_2_pong_integrity::*;
 
+// Import Timestamp and AgentPubKey for ChatMessagePayload
+use hdk::prelude::{Timestamp, AgentPubKey};
 
 /// ---------- 1. grant the capability on startup ----------
 #[hdk_extern]
@@ -32,9 +35,16 @@ fn init(_: ()) -> ExternResult<InitCallbackResult> {
     Ok(InitCallbackResult::Pass)
 }
 
+// ChatMessagePayload struct definition
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ChatMessagePayload {
+    pub timestamp: Timestamp,
+    pub sender: AgentPubKey,
+    pub content: String,
+}
 
 // Signal enum definition
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum Signal {
     // Standard Holochain signals
@@ -79,6 +89,7 @@ pub enum Signal {
         score1: u32,
         score2: u32,
     },
+    GlobalChatMessage(ChatMessagePayload),
 }
 
 // post_commit hook (no changes needed here)
