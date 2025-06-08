@@ -1,6 +1,7 @@
 // ping_2_pong/dnas/ping_2_pong/zomes/coordinator/ping_2_pong/src/lib.rs
 
 // Declare modules
+pub mod chat;
 pub mod game;
 pub mod player;
 pub mod score;
@@ -9,10 +10,20 @@ pub mod utils;
 pub mod signals;
 pub mod invitations;
 
+pub use chat::send_global_chat_message;
+pub use signals::receive_remote_signal;
+
 use hdk::prelude::*;
 // Use integrity crate types (EntryTypes, LinkTypes)
 use ping_2_pong_integrity::*;
 
+// NEW STRUCT DEFINITION
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ChatMessagePayload {
+    pub timestamp: Timestamp,
+    pub sender: AgentPubKey,
+    pub content: String,
+}
 
 /// ---------- 1. grant the capability on startup ----------
 #[hdk_extern]
@@ -34,9 +45,10 @@ fn init(_: ()) -> ExternResult<InitCallbackResult> {
 
 
 // Signal enum definition
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum Signal {
+    GlobalChatMessage(ChatMessagePayload),
     // Standard Holochain signals
     LinkCreated { action: SignedActionHashed, link_type: LinkTypes },
     LinkDeleted { action: SignedActionHashed, create_link_action: SignedActionHashed, link_type: LinkTypes },
