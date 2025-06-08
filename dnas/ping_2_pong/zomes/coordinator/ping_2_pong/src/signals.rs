@@ -1,6 +1,10 @@
 // ping_2_pong/dnas/ping_2_pong/zomes/coordinator/ping_2_pong/src/signals.rs
 use hdk::prelude::*;
-use crate::{Signal, Game};
+use crate::{Signal, Game}; // Assuming Game is ping_2_pong_integrity::Game or similar
+// use std::ops::Sub; // Not strictly needed if using checked_sub method directly
+
+// kitsune_p2p_timestamp::Timestamp is used for sent_at.
+// sys_time() also returns kitsune_p2p_timestamp::Timestamp.
 
 /// ───────────────────────── init helper ─────────────────────────
 pub fn grant_remote_signal_cap() -> ExternResult<()> {
@@ -20,54 +24,109 @@ pub fn grant_remote_signal_cap() -> ExternResult<()> {
 /// ──────────────────────── local re-emit ───────────────────────
 #[hdk_extern]
 pub fn receive_remote_signal(signal: Signal) -> ExternResult<()> {
-    // The received_at time is captured at the beginning of the function.
-    // For latency calculation, it's better to get it just before processing each relevant signal,
-    // but for simplicity and consistency with previous logic, we can use a single `received_at`
-    // if the processing within the match arms is quick.
-    // However, the instruction implies fetching it fresh for each calculation block.
-    // Let's adhere to that for precision.
-
     match &signal {
-        Signal::PaddleUpdate { sent_at, .. } => {
+        Signal::PaddleUpdate { game_id: _, player: _, paddle_y: _, sent_at } => { // Destructure to get sent_at
             let received_at_for_signal = sys_time()?;
-            let duration_since_sent = received_at_for_signal.sub(*sent_at)
-                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
-                    format!("Timestamp underflow for PaddleUpdate: sent_at {:?} may be later than received_at {:?} or other issue.", sent_at, received_at_for_signal)
-                )))?;
+            let duration_option = received_at_for_signal.checked_sub(*sent_at);
+
+            let duration_since_sent = match duration_option {
+                Some(duration) => duration,
+                None => {
+                    error!(
+                        "Timestamp underflow for PaddleUpdate: sent_at {:?} is later than received_at {:?}.",
+                        sent_at, received_at_for_signal
+                    );
+                    return Err(wasm_error!(WasmErrorInner::Guest(format!(
+                        "Timestamp underflow for PaddleUpdate: sent_at {:?} is later than received_at {:?}.",
+                        sent_at, received_at_for_signal
+                    ))));
+                }
+            };
+
             let latency_ms = (duration_since_sent.as_micros() / 1000) as u64;
-            debug!("Signal latency (PaddleUpdate): {} ms. Sent: {:?}, Received: {:?}", latency_ms, sent_at, received_at_for_signal);
+            debug!(
+                "Signal latency (PaddleUpdate): {} ms. Sent: {:?}, Received: {:?}",
+                latency_ms, sent_at, received_at_for_signal
+            );
         }
-        Signal::BallUpdate { sent_at, .. } => {
+        Signal::BallUpdate { game_id: _, ball_x: _, ball_y: _, ball_dx: _, ball_dy: _, sent_at } => { // Destructure
             let received_at_for_signal = sys_time()?;
-            let duration_since_sent = received_at_for_signal.sub(*sent_at)
-                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
-                    format!("Timestamp underflow for BallUpdate: sent_at {:?} may be later than received_at {:?} or other issue.", sent_at, received_at_for_signal)
-                )))?;
+            let duration_option = received_at_for_signal.checked_sub(*sent_at);
+
+            let duration_since_sent = match duration_option {
+                Some(duration) => duration,
+                None => {
+                    error!(
+                        "Timestamp underflow for BallUpdate: sent_at {:?} is later than received_at {:?}.",
+                        sent_at, received_at_for_signal
+                    );
+                    return Err(wasm_error!(WasmErrorInner::Guest(format!(
+                        "Timestamp underflow for BallUpdate: sent_at {:?} is later than received_at {:?}.",
+                        sent_at, received_at_for_signal
+                    ))));
+                }
+            };
+
             let latency_ms = (duration_since_sent.as_micros() / 1000) as u64;
-            debug!("Signal latency (BallUpdate): {} ms. Sent: {:?}, Received: {:?}", latency_ms, sent_at, received_at_for_signal);
+            debug!(
+                "Signal latency (BallUpdate): {} ms. Sent: {:?}, Received: {:?}",
+                latency_ms, sent_at, received_at_for_signal
+            );
         }
-        Signal::ScoreUpdate { sent_at, .. } => {
+        Signal::ScoreUpdate { game_id: _, score1: _, score2: _, sent_at } => { // Destructure
             let received_at_for_signal = sys_time()?;
-            let duration_since_sent = received_at_for_signal.sub(*sent_at)
-                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
-                    format!("Timestamp underflow for ScoreUpdate: sent_at {:?} may be later than received_at {:?} or other issue.", sent_at, received_at_for_signal)
-                )))?;
+            let duration_option = received_at_for_signal.checked_sub(*sent_at);
+
+            let duration_since_sent = match duration_option {
+                Some(duration) => duration,
+                None => {
+                    error!(
+                        "Timestamp underflow for ScoreUpdate: sent_at {:?} is later than received_at {:?}.",
+                        sent_at, received_at_for_signal
+                    );
+                    return Err(wasm_error!(WasmErrorInner::Guest(format!(
+                        "Timestamp underflow for ScoreUpdate: sent_at {:?} is later than received_at {:?}.",
+                        sent_at, received_at_for_signal
+                    ))));
+                }
+            };
+
             let latency_ms = (duration_since_sent.as_micros() / 1000) as u64;
-            debug!("Signal latency (ScoreUpdate): {} ms. Sent: {:?}, Received: {:?}", latency_ms, sent_at, received_at_for_signal);
+            debug!(
+                "Signal latency (ScoreUpdate): {} ms. Sent: {:?}, Received: {:?}",
+                latency_ms, sent_at, received_at_for_signal
+            );
         }
-        Signal::GameOver { sent_at, .. } => {
+        Signal::GameOver { game_id: _, winner: _, score1: _, score2: _, sent_at } => { // Destructure
             let received_at_for_signal = sys_time()?;
-            let duration_since_sent = received_at_for_signal.sub(*sent_at)
-                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
-                    format!("Timestamp underflow for GameOver: sent_at {:?} may be later than received_at {:?} or other issue.", sent_at, received_at_for_signal)
-                )))?;
+            let duration_option = received_at_for_signal.checked_sub(*sent_at);
+
+            let duration_since_sent = match duration_option {
+                Some(duration) => duration,
+                None => {
+                    error!(
+                        "Timestamp underflow for GameOver: sent_at {:?} is later than received_at {:?}.",
+                        sent_at, received_at_for_signal
+                    );
+                    return Err(wasm_error!(WasmErrorInner::Guest(format!(
+                        "Timestamp underflow for GameOver: sent_at {:?} is later than received_at {:?}.",
+                        sent_at, received_at_for_signal
+                    ))));
+                }
+            };
+
             let latency_ms = (duration_since_sent.as_micros() / 1000) as u64;
-            debug!("Signal latency (GameOver): {} ms. Sent: {:?}, Received: {:?}", latency_ms, sent_at, received_at_for_signal);
+            debug!(
+                "Signal latency (GameOver): {} ms. Sent: {:?}, Received: {:?}",
+                latency_ms, sent_at, received_at_for_signal
+            );
         }
-        // For other signals that don't have `sent_at`, we just emit them
-        _ => {}
+        _ => {
+            // Other signals that don't have 'sent_at' or don't need latency calculation.
+        }
     }
 
+    // Existing logic to re-emit the signal locally
     emit_signal(&signal)
 }
 
@@ -76,7 +135,7 @@ pub fn receive_remote_signal(signal: Signal) -> ExternResult<()> {
 pub struct PaddleUpdatePayload {
     pub game_id:  ActionHash,
     pub paddle_y: u32,
-    pub sent_at: Timestamp,
+    pub sent_at: Timestamp, // This is kitsune_p2p_timestamp::Timestamp
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -109,34 +168,30 @@ fn latest_record(original: &ActionHash) -> ExternResult<Record> {
 
     loop {
         let details = get_details(current.clone(), GetOptions::default())?
-            .ok_or(wasm_error!("Game details not found"))?;
+            .ok_or(wasm_error!(WasmErrorInner::Guest("Game details not found".into())))?;
 
         match details {
             Details::Record(rec) => {
-                // Any further updates?
                 if let Some(update) = rec.updates.last() {
                     current = update.action_address().clone();
                 } else {
                     return Ok(rec.record);
                 }
             }
-            // Only `Record` details make sense for an ActionHash.
-            _ => return Err(wasm_error!("Unexpected details variant")),
+            _ => return Err(wasm_error!(WasmErrorInner::Guest("Unexpected details variant".into()))),
         }
     }
 }
 
 /// ───────────────────── broadcast helper ──────────────────────
-fn broadcast_to_opponents(game_id: &ActionHash, signal: &Signal) -> ExternResult<()> {
-    // 1. load the *latest* Game entry
+fn broadcast_to_opponents(game_id: &ActionHash, signal_to_broadcast: &Signal) -> ExternResult<()> {
     let record = latest_record(game_id)?;
     let game: Game = record
         .entry()
         .to_app_option::<Game>()
-        .map_err(|e| wasm_error!(e.to_string()))?
-        .ok_or(wasm_error!("Malformed Game entry"))?;
+        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+        .ok_or(wasm_error!(WasmErrorInner::Guest("Malformed Game entry".into())))?;
 
-    // 2. build recipient list (everyone except me)
     let me = agent_info()?.agent_latest_pubkey;
     let recipients = [&Some(game.player_1.clone()), &game.player_2]
         .iter()
@@ -145,14 +200,13 @@ fn broadcast_to_opponents(game_id: &ActionHash, signal: &Signal) -> ExternResult
         .cloned()
         .collect::<Vec<_>>();
 
-    // 3. fire-and-forget
     for agent in recipients {
         let _ = call_remote(
             agent,
-            "ping_2_pong",               // zome
+            "ping_2_pong",
             "receive_remote_signal".into(),
-            None,                        // no cap secret
-            signal,              // payload
+            None,
+            signal_to_broadcast,
         );
     }
     Ok(())
@@ -162,69 +216,60 @@ fn broadcast_to_opponents(game_id: &ActionHash, signal: &Signal) -> ExternResult
 #[hdk_extern]
 pub fn send_paddle_update(mut payload: PaddleUpdatePayload) -> ExternResult<()> {
     payload.sent_at = sys_time()?;
-    let signal = Signal::PaddleUpdate {
+    let signal_to_send = Signal::PaddleUpdate {
         game_id:  payload.game_id.clone(),
         player:   agent_info()?.agent_latest_pubkey,
         paddle_y: payload.paddle_y,
-        sent_at: payload.sent_at, // Populate sent_at in the signal
+        sent_at: payload.sent_at,
     };
-    emit_signal(&signal)?;
-    broadcast_to_opponents(&payload.game_id, &signal)
+    broadcast_to_opponents(&payload.game_id, &signal_to_send)
 }
 
 #[hdk_extern]
 pub fn send_game_abandoned_signal(payload: GameAbandonedPayload) -> ExternResult<()> {
     let abandoned_by_player = agent_info()?.agent_latest_pubkey;
-    let signal = Signal::GameAbandoned { // Ensure Signal::GameAbandoned matches the enum in lib.rs
+    let signal_to_send = Signal::GameAbandoned {
         game_id: payload.game_id.clone(),
         abandoned_by_player,
     };
-    
-    // emit_signal(&signal)?; // Optional: emit locally for the abandoner
-    
-    // Broadcast to the opponent
-    broadcast_to_opponents(&payload.game_id, &signal)
+    broadcast_to_opponents(&payload.game_id, &signal_to_send)
 }
 
 #[hdk_extern]
 pub fn send_ball_update(mut payload: BallUpdatePayload) -> ExternResult<()> {
     payload.sent_at = sys_time()?;
-    let signal = Signal::BallUpdate {
+    let signal_to_send = Signal::BallUpdate {
         game_id: payload.game_id.clone(),
         ball_x:  payload.ball_x,
         ball_y:  payload.ball_y,
         ball_dx: payload.ball_dx,
         ball_dy: payload.ball_dy,
-        sent_at: payload.sent_at, // Populate sent_at in the signal
+        sent_at: payload.sent_at,
     };
-    emit_signal(&signal)?;
-    broadcast_to_opponents(&payload.game_id, &signal)
+    broadcast_to_opponents(&payload.game_id, &signal_to_send)
 }
 
 #[hdk_extern]
 pub fn send_score_update(mut payload: GameOverPayload) -> ExternResult<()> {
-    // we re-use GameOverPayload because it already contains score1/score2
     payload.sent_at = sys_time()?;
-    let signal = Signal::ScoreUpdate {
+    let signal_to_send = Signal::ScoreUpdate {
         game_id: payload.game_id.clone(),
         score1:  payload.score1,
         score2:  payload.score2,
-        sent_at: payload.sent_at, // Populate sent_at in the signal
+        sent_at: payload.sent_at,
     };
-    emit_signal(&signal)?;
-    broadcast_to_opponents(&payload.game_id, &signal)
+    broadcast_to_opponents(&payload.game_id, &signal_to_send)
 }
 
 #[hdk_extern]
 pub fn send_game_over(mut payload: GameOverPayload) -> ExternResult<()> {
     payload.sent_at = sys_time()?;
-    let signal = Signal::GameOver {
+    let signal_to_send = Signal::GameOver {
         game_id: payload.game_id.clone(),
         winner:  payload.winner.clone(),
         score1:  payload.score1,
         score2:  payload.score2,
-        sent_at: payload.sent_at, // Populate sent_at in the signal
+        sent_at: payload.sent_at,
     };
-    emit_signal(&signal)?;
-    broadcast_to_opponents(&payload.game_id, &signal)
+    broadcast_to_opponents(&payload.game_id, &signal_to_send)
 }
