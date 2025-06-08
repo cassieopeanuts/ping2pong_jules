@@ -20,6 +20,54 @@ pub fn grant_remote_signal_cap() -> ExternResult<()> {
 /// ──────────────────────── local re-emit ───────────────────────
 #[hdk_extern]
 pub fn receive_remote_signal(signal: Signal) -> ExternResult<()> {
+    let received_at = sys_time()?;
+    let sent_at_str: String;
+
+    match &signal {
+        Signal::PaddleUpdate { sent_at, .. } => {
+            sent_at_str = format!("{:?}", sent_at);
+            let latency_duration = received_at
+                .checked_sub(sent_at.clone())
+                .ok_or(wasm_error!(WasmErrorInner::Guest(
+                    "Timestamp underflow for PaddleUpdate".into()
+                )))?;
+            let latency_ms = latency_duration.as_micros() / 1000;
+            debug!("Signal latency for PaddleUpdate: {} ms (sent: {}, received: {:?})", latency_ms, sent_at_str, received_at);
+        }
+        Signal::BallUpdate { sent_at, .. } => {
+            sent_at_str = format!("{:?}", sent_at);
+            let latency_duration = received_at
+                .checked_sub(sent_at.clone())
+                .ok_or(wasm_error!(WasmErrorInner::Guest(
+                    "Timestamp underflow for BallUpdate".into()
+                )))?;
+            let latency_ms = latency_duration.as_micros() / 1000;
+            debug!("Signal latency for BallUpdate: {} ms (sent: {}, received: {:?})", latency_ms, sent_at_str, received_at);
+        }
+        Signal::ScoreUpdate { sent_at, .. } => {
+            sent_at_str = format!("{:?}", sent_at);
+            let latency_duration = received_at
+                .checked_sub(sent_at.clone())
+                .ok_or(wasm_error!(WasmErrorInner::Guest(
+                    "Timestamp underflow for ScoreUpdate".into()
+                )))?;
+            let latency_ms = latency_duration.as_micros() / 1000;
+            debug!("Signal latency for ScoreUpdate: {} ms (sent: {}, received: {:?})", latency_ms, sent_at_str, received_at);
+        }
+        Signal::GameOver { sent_at, .. } => {
+            sent_at_str = format!("{:?}", sent_at);
+            let latency_duration = received_at
+                .checked_sub(sent_at.clone())
+                .ok_or(wasm_error!(WasmErrorInner::Guest(
+                    "Timestamp underflow for GameOver".into()
+                )))?;
+            let latency_ms = latency_duration.as_micros() / 1000;
+            debug!("Signal latency for GameOver: {} ms (sent: {}, received: {:?})", latency_ms, sent_at_str, received_at);
+        }
+        // For other signals that don't have `sent_at`, we just emit them
+        _ => {}
+    }
+
     emit_signal(&signal)
 }
 
@@ -28,11 +76,13 @@ pub fn receive_remote_signal(signal: Signal) -> ExternResult<()> {
 pub struct PaddleUpdatePayload {
     pub game_id:  ActionHash,
     pub paddle_y: u32,
+    pub sent_at: Timestamp,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BallUpdatePayload {
     pub game_id: ActionHash,
+    pub sent_at: Timestamp,
     pub ball_x:  u32,
     pub ball_y:  u32,
     pub ball_dx: i32,
@@ -45,6 +95,7 @@ pub struct GameOverPayload {
     pub winner:  Option<AgentPubKey>,
     pub score1:  u32,
     pub score2:  u32,
+    pub sent_at: Timestamp,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -109,11 +160,13 @@ fn broadcast_to_opponents(game_id: &ActionHash, signal: &Signal) -> ExternResult
 
 /// ───────────────────── externs used by UI ────────────────────
 #[hdk_extern]
-pub fn send_paddle_update(payload: PaddleUpdatePayload) -> ExternResult<()> {
+pub fn send_paddle_update(mut payload: PaddleUpdatePayload) -> ExternResult<()> {
+    payload.sent_at = sys_time()?;
     let signal = Signal::PaddleUpdate {
         game_id:  payload.game_id.clone(),
         player:   agent_info()?.agent_latest_pubkey,
         paddle_y: payload.paddle_y,
+        sent_at: payload.sent_at, // Populate sent_at in the signal
     };
     emit_signal(&signal)?;
     broadcast_to_opponents(&payload.game_id, &signal)
@@ -134,37 +187,43 @@ pub fn send_game_abandoned_signal(payload: GameAbandonedPayload) -> ExternResult
 }
 
 #[hdk_extern]
-pub fn send_ball_update(payload: BallUpdatePayload) -> ExternResult<()> {
+pub fn send_ball_update(mut payload: BallUpdatePayload) -> ExternResult<()> {
+    payload.sent_at = sys_time()?;
     let signal = Signal::BallUpdate {
         game_id: payload.game_id.clone(),
         ball_x:  payload.ball_x,
         ball_y:  payload.ball_y,
         ball_dx: payload.ball_dx,
         ball_dy: payload.ball_dy,
+        sent_at: payload.sent_at, // Populate sent_at in the signal
     };
     emit_signal(&signal)?;
     broadcast_to_opponents(&payload.game_id, &signal)
 }
 
 #[hdk_extern]
-pub fn send_score_update(payload: GameOverPayload) -> ExternResult<()> {
+pub fn send_score_update(mut payload: GameOverPayload) -> ExternResult<()> {
     // we re-use GameOverPayload because it already contains score1/score2
+    payload.sent_at = sys_time()?;
     let signal = Signal::ScoreUpdate {
         game_id: payload.game_id.clone(),
         score1:  payload.score1,
         score2:  payload.score2,
+        sent_at: payload.sent_at, // Populate sent_at in the signal
     };
     emit_signal(&signal)?;
     broadcast_to_opponents(&payload.game_id, &signal)
 }
 
 #[hdk_extern]
-pub fn send_game_over(payload: GameOverPayload) -> ExternResult<()> {
+pub fn send_game_over(mut payload: GameOverPayload) -> ExternResult<()> {
+    payload.sent_at = sys_time()?;
     let signal = Signal::GameOver {
         game_id: payload.game_id.clone(),
         winner:  payload.winner.clone(),
         score1:  payload.score1,
         score2:  payload.score2,
+        sent_at: payload.sent_at, // Populate sent_at in the signal
     };
     emit_signal(&signal)?;
     broadcast_to_opponents(&payload.game_id, &signal)

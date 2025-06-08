@@ -1,5 +1,6 @@
 // ping_2_pong/dnas/ping_2_pong/zomes/integrity/ping_2_pong/src/lib.rs
 use hdk::prelude::*;
+use holo_hash::{ActionHash, AgentPubKey};
 
 // Import entry definitions
 pub mod game;
@@ -10,6 +11,8 @@ pub mod score;
 pub use score::Score;
 pub mod statistics;
 pub use statistics::Statistics;
+pub mod game_stats; // Added for GameStats
+pub use game_stats::GameStats; // Added for GameStats
 pub mod presence;
 pub use presence::Presence;
 pub mod anchor_path;
@@ -20,6 +23,7 @@ pub mod game_validation;
 pub mod player_validation;
 pub mod score_validation; // Will be modified below
 pub mod statistics_validation; // Will be modified below
+pub mod game_stats_validation; // Added for GameStats
 pub mod presence_validation;
 
 // Import utils like anchor_for (used only by link validation helpers below)
@@ -38,6 +42,8 @@ pub enum EntryTypes {
     Score(Score),
     #[entry_type(visibility = "public")]
     Statistics(Statistics),
+    #[entry_type(visibility = "public")]
+    GameStats(GameStats), // Added for GameStats
     #[entry_type(visibility = "public")]
     Presence(Presence),
     #[entry_type(visibility = "public")]
@@ -85,6 +91,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                                             // Calls to score/stats validation are kept, but their internals will change
                                             EntryTypes::Score(score) => score_validation::validate_create_score(signed_action, score),
                                             EntryTypes::Statistics(statistics) => statistics_validation::validate_create_statistics(signed_action, statistics),
+                                            EntryTypes::GameStats(game_stats) => game_stats_validation::validate_create_game_stats(signed_action, game_stats), // Added for GameStats
                                             EntryTypes::Presence(presence) => presence_validation::validate_create_presence(signed_action, presence),
                                             EntryTypes::AnchorPath(_) => Ok(ValidateCallbackResult::Valid), // Anchor paths are structural
                                         }

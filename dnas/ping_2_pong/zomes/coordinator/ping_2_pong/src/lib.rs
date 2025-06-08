@@ -10,9 +10,23 @@ pub mod signals;
 pub mod invitations;
 
 use hdk::prelude::*;
+use holo_hash::{ActionHash, AgentPubKey};
 // Use integrity crate types (EntryTypes, LinkTypes)
 use ping_2_pong_integrity::*;
+use ping_2_pong_integrity::GameStats as IntegrityGameStats; // Added for GameStats
 
+
+// GameStats struct for coordinator zome
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GameStats {
+    pub game_id: ActionHash,
+    pub player_1: AgentPubKey,
+    pub player_2: AgentPubKey,
+    pub latency_ms: u64,
+    pub time_to_write_score_ms: u64,
+    pub time_to_read_score_ms: u64,
+    pub created_at: Timestamp,
+}
 
 /// ---------- 1. grant the capability on startup ----------
 #[hdk_extern]
@@ -60,6 +74,7 @@ pub enum Signal {
         game_id: ActionHash,
         player: AgentPubKey,
         paddle_y: u32,
+        sent_at: Timestamp,
     },
     BallUpdate {
         game_id: ActionHash,
@@ -67,17 +82,20 @@ pub enum Signal {
         ball_y: u32,
         ball_dx: i32,
         ball_dy: i32,
+        sent_at: Timestamp,
     },
     ScoreUpdate {
         game_id: ActionHash,
         score1:  u32,
         score2:  u32,
+        sent_at: Timestamp,
     },
     GameOver {
         game_id: ActionHash,
         winner: Option<AgentPubKey>,
         score1: u32,
         score2: u32,
+        sent_at: Timestamp,
     },
     GameAbandoned {
         game_id: ActionHash,

@@ -15,8 +15,15 @@ pub struct CreateScoreInput {
     pub player_points: u32,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CreateScoreOutput {
+    pub score_hash: ActionHash,
+    pub write_duration_ms: u64,
+}
+
 #[hdk_extern]
-pub fn create_score(input: CreateScoreInput) -> ExternResult<Record> {
+pub fn create_score(input: CreateScoreInput) -> ExternResult<CreateScoreOutput> {
+    let start_time = sys_time()?;
     debug!("[score.rs] create_score: Called with input: {:?}", input);
 
     // --- Validation ---
@@ -129,10 +136,45 @@ pub fn create_score(input: CreateScoreInput) -> ExternResult<Record> {
     )?;
 
     // Retrieve and return the created Score record.
-    let record = get(score_action_hash.clone(), GetOptions::default())?
-        .ok_or(wasm_error!(WasmErrorInner::Guest("Could not find the newly created Score".to_string())))?;
-    debug!("[score.rs] create_score: Successfully created score, returning record for action: {:?}", record.action_hashed().hash);
-    Ok(record)
+    // Retrieve the action hash of the created Score entry.
+    // We don't need the full record here, just the hash for the output.
+    // The validation that it was created is implicitly handled by create_entry not erroring.
+    // let record = get(score_action_hash.clone(), GetOptions::default())?
+    //     .ok_or(wasm_error!(WasmErrorInner::Guest("Could not find the newly created Score".to_string())))?;
+    // debug!("[score.rs] create_score: Successfully created score, returning record for action: {:?}", record.action_hashed().hash);
+
+    let end_time = sys_time()?;
+    let duration_micros = end_time.as_micros() - start_time.as_micros();
+    let write_duration_ms = duration_micros / 1000;
+
+    debug!("[score.rs] create_score: Successfully created score action: {:?}, write duration: {} ms", score_action_hash, write_duration_ms);
+    Ok(CreateScoreOutput {
+        score_hash: score_action_hash,
+        write_duration_ms,
+    })
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GetScoreOutput {
+    pub score_record: Option<Record>,
+    pub read_duration_ms: u64,
+}
+
+#[hdk_extern]
+pub fn get_score_and_measure_time(score_hash: ActionHash) -> ExternResult<GetScoreOutput> {
+    let start_time = sys_time()?;
+
+    let record = get(score_hash, GetOptions::default())?;
+
+    let end_time = sys_time()?;
+    let duration_micros = end_time.as_micros() - start_time.as_micros();
+    let read_duration_ms = duration_micros / 1000;
+
+    debug!("[score.rs] get_score_and_measure_time: Fetched score record, read duration: {} ms", read_duration_ms);
+    Ok(GetScoreOutput {
+        score_record: record,
+        read_duration_ms,
+    })
 }
 
 // --- Other Score CRUD functions ---

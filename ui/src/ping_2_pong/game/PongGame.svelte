@@ -6,9 +6,20 @@
   // Import local types and context
   import { clientContext, type ClientContext } from "../../contexts";
   import { decode } from "@msgpack/msgpack";
-  // Import local types including the specific signal structures if needed for receiving
-  // Note: Signal types are used here for clarity but aren't strictly required if only checking `signalPayload.type`
-  import type { Game, Score, GameStatus, UpdateGameInput, PaddleUpdateSignal, BallUpdateSignal, GameOverSignal, ScoreUpdateSignal } from "../ping_2_pong/types";
+  // Import local types
+  import type {
+    Game,
+    GameStatus,
+    UpdateGameInput,
+    PaddleUpdatePayload,
+    BallUpdatePayload,
+    ScoreUpdatePayload,
+    GameOverPayload,
+    Timestamp,
+    CreateScoreOutput,   // Added CreateScoreOutput
+    GetScoreOutput,      // Added GetScoreOutput
+    GameStats            // Added GameStats for payload
+  } from "../ping_2_pong/types";
   import { getOrFetchProfile, type DisplayProfile } from "../../stores/profilesStore";
   import { HOLOCHAIN_ROLE_NAME, HOLOCHAIN_ZOME_NAME } from "../../holochainConfig";
 
@@ -56,10 +67,14 @@
   let ctx: CanvasRenderingContext2D; // Canvas 2D rendering context
   let animationFrameId: number; // ID for the requestAnimationFrame loop
 
-  // Signal Handling
+  // Signal Handling & Metrics
   let unsubscribeFromSignals: (() => void) | undefined; // Function to unsubscribe from signal listener
   let lastPaddleUpdate = 0; // Timestamp of the last paddle update sent
   let lastBallUpdate = 0; // Timestamp of the last ball update sent
+  let RTTs: number[] = []; // For storing Round Trip Times (latency)
+  let collectedTimeToWriteScoreMs: number = 0; // For storing time to write score
+  let collectedTimeToReadScoreMs: number = 0; // For storing time to read score
+
 
   // Retry mechanism state
   let retryTimeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -96,8 +111,8 @@
       // Call the zome function to get the latest game record based on the original hash
       const result: Record | null = await client.callZome({
         cap_secret: null,
-        role_name: "ping_2_pong",
-        zome_name: "ping_2_pong",
+        role_name: HOLOCHAIN_ROLE_NAME,
+        zome_name: HOLOCHAIN_ZOME_NAME,
         fn_name: "get_latest_game", // Gets the record associated with the latest update action
         payload: gameId, // Pass the original game hash
       });
@@ -222,6 +237,9 @@
       }
       console.log("[PongGame startGameLoop] Starting game loop and listeners.");
       gameOver = false; // Ensure game isn't marked over
+      RTTs = []; // Reset RTTs for the new game
+      collectedTimeToWriteScoreMs = 0;
+      collectedTimeToReadScoreMs = 0;
       draw(); // Start drawing loop
       window.addEventListener("keydown", handleKeyDown); // Listen for keyboard input
       unsubscribeFromSignals = subscribeToGameSignals(); // Subscribe to game signals
@@ -263,17 +281,16 @@
     if (gameOver || !client || !liveGame || !gameId || (now - lastPaddleUpdate < UPDATE_INTERVAL)) return;
     lastPaddleUpdate = now; // Update timestamp of last sent signal
 
-    // Prepare payload matching the backend's PaddleUpdatePayload struct
-    const payload = {
-        game_id: gameId, // The original ActionHash identifying the game
-        paddle_y: Math.round(isPlayer1 ? paddle1Y : paddle2Y) // Send the current Y position, rounded
+    const payload: PaddleUpdatePayload = {
+        game_id: gameId,
+        paddle_y: Math.round(isPlayer1 ? paddle1Y : paddle2Y),
+        sent_at: [Math.floor(Date.now() / 1000), (Date.now() % 1000) * 1_000_000] as Timestamp
     };
 
     try {
-      // Call the specific backend function to send the signal
       await client.callZome({
-          cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong",
-          fn_name: "send_paddle_update", // Use the dedicated function
+          cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
+          fn_name: "send_paddle_update",
           payload: payload
       });
     } catch (e) { console.error("Error sending paddle update signal:", e); }
@@ -281,25 +298,23 @@
 
   // Sends the current ball position and velocity update signal (only Player 1 does this)
   async function sendBallUpdate() {
-    // Throttle updates and ensure only Player 1 sends these signals
     const now = Date.now();
     if (gameOver || !isPlayer1 || !client || !liveGame || !gameId || (now - lastBallUpdate < UPDATE_INTERVAL)) return;
-    lastBallUpdate = now; // Update timestamp
+    lastBallUpdate = now;
 
-    // Prepare payload matching the backend's BallUpdatePayload struct
-    const payload = {
-        game_id: gameId, // The original ActionHash identifying the game
+    const payload: BallUpdatePayload = {
+        game_id: gameId,
         ball_x: Math.round(ball.x),
         ball_y: Math.round(ball.y),
-        ball_dx: Math.round(ball.dx), // Assuming backend expects i32
-        ball_dy: Math.round(ball.dy)  // Assuming backend expects i32
+        ball_dx: Math.round(ball.dx),
+        ball_dy: Math.round(ball.dy),
+        sent_at: [Math.floor(Date.now() / 1000), (Date.now() % 1000) * 1_000_000] as Timestamp
     };
 
     try {
-      // Call the specific backend function
       await client.callZome({
-          cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong",
-          fn_name: "send_ball_update", // Use the dedicated function
+          cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
+          fn_name: "send_ball_update",
           payload: payload
       });
     } catch (e) { console.error("Error sending ball update signal:", e); }
@@ -308,16 +323,18 @@
   async function sendScoreUpdate() {
     if (!client || !liveGame) return;
     try {
-      await client.callZome({
-        cap_secret: null,
-        role_name : "ping_2_pong",
-        zome_name : "ping_2_pong",
-        fn_name   : "send_score_update",            // <- backend helper you added earlier
-        payload: {
+      const payload: ScoreUpdatePayload = {
           game_id: gameId,
           score1 : score.player1,
-          score2 : score.player2
-        }
+          score2 : score.player2,
+          sent_at: [Math.floor(Date.now() / 1000), (Date.now() % 1000) * 1_000_000] as Timestamp
+      };
+      await client.callZome({
+        cap_secret: null,
+        role_name : HOLOCHAIN_ROLE_NAME,
+        zome_name : HOLOCHAIN_ZOME_NAME,
+        fn_name   : "send_score_update",
+        payload: payload
       });
     } catch (e) { console.error("Score update failed:", e); }
   }
@@ -329,35 +346,62 @@
     return client.on("signal", (raw: any) => {
       const s = raw?.App?.payload;
       if (!s || !s.type || gameOver) return;
-      if (encodeHashToBase64(s.game_id) !== encodeHashToBase64(gameId)) return;
+
+      let signalGameIdB64 = "";
+      if (s.game_id instanceof Uint8Array) {
+        signalGameIdB64 = encodeHashToBase64(s.game_id);
+      } else if (typeof s.game_id === 'string') {
+        signalGameIdB64 = s.game_id;
+      } else {
+        console.warn("Received signal with unknown game_id format:", s.game_id);
+        return;
+      }
+      if (signalGameIdB64 !== encodeHashToBase64(gameId)) return;
 
       const meB64 = encodeHashToBase64(playerKey);
+      const receivedAt = Date.now();
 
       try {
+        if (s.sent_at && Array.isArray(s.sent_at) && s.sent_at.length === 2) {
+            const sentAtMs = s.sent_at[0] * 1000 + Math.floor(s.sent_at[1] / 1_000_000);
+            const latencyMs = receivedAt - sentAtMs;
+            RTTs.push(latencyMs);
+        }
+
         switch (s.type) {
           case "PaddleUpdate":
-            if (encodeHashToBase64(s.player) !== meB64) {
+            let paddlePlayerB64 = "";
+            if (s.player instanceof Uint8Array) {
+                paddlePlayerB64 = encodeHashToBase64(s.player);
+            } else if (typeof s.player === 'string') {
+                paddlePlayerB64 = s.player;
+            }
+            if (paddlePlayerB64 !== meB64) {
               if (isPlayer1) paddle2Y = s.paddle_y;
-              else           paddle1Y = s.paddle_y;
+              else paddle1Y = s.paddle_y;
             }
             break;
-
           case "BallUpdate":
             if (!isPlayer1) {
               ball.x = s.ball_x; ball.y = s.ball_y;
               ball.dx = s.ball_dx; ball.dy = s.ball_dy;
             }
             break;
-
-          case "ScoreUpdate":                            /* <-- NEW */
+          case "ScoreUpdate":
             score.player1 = s.score1;
             score.player2 = s.score2;
             break;
-
           case "GameOver":
-            handleRemoteGameOver(
-              s.winner ?? null as AgentPubKey|null
-            );
+            let winnerPubKey: AgentPubKey | null = null;
+            if (s.winner) {
+                if (s.winner instanceof Uint8Array) {
+                    winnerPubKey = s.winner;
+                } else if (typeof s.winner === 'string') {
+                    console.warn("GameOver signal winner is a string, attempting to use as is:", s.winner);
+                    try { winnerPubKey = decode(Uint8Array.from(atob(s.winner), c => c.charCodeAt(0))) as AgentPubKey; } catch { /*ignore, pass as is*/ winnerPubKey = s.winner as any; }
+                }
+            }
+            handleRemoteGameOver(winnerPubKey);
             break;
         }
       } catch(e) { console.error("signal parse err", e); }
@@ -366,74 +410,62 @@
 
   // Updates ball physics, checks for collisions and scoring (only Player 1 executes this)
   function updateBallAndScore() {
-    if (gameOver || !isPlayer1 || !liveGame) return; // Guard: Only P1 runs physics
+    if (gameOver || !isPlayer1 || !liveGame) return;
 
-    // Move ball
     ball.x += ball.dx;
     ball.y += ball.dy;
 
-    // Check for collisions with top/bottom walls
     if (ball.y + BALL_RADIUS > CANVAS_HEIGHT || ball.y - BALL_RADIUS < 0) {
-      ball.dy = -ball.dy; // Reverse vertical velocity
-      ball.y = Math.max(BALL_RADIUS, Math.min(CANVAS_HEIGHT - BALL_RADIUS, ball.y)); // Clamp position
+      ball.dy = -ball.dy;
+      ball.y = Math.max(BALL_RADIUS, Math.min(CANVAS_HEIGHT - BALL_RADIUS, ball.y));
     }
 
-    // Check for collisions with paddles
     let hitPaddle = false;
-    // Player 1 paddle collision logic
     if (ball.dx < 0 && ball.x - BALL_RADIUS < PADDLE_WIDTH && ball.x > BALL_RADIUS && ball.y > paddle1Y && ball.y < paddle1Y + PADDLE_HEIGHT) {
-        ball.dx = -ball.dx * 1.05; // Reverse horizontal velocity, increase speed
-        ball.x = PADDLE_WIDTH + BALL_RADIUS; // Reposition ball
-        ball.dy = (ball.y - (paddle1Y + PADDLE_HEIGHT / 2)) * 0.35; // Add vertical angle
+        ball.dx = -ball.dx * 1.05;
+        ball.x = PADDLE_WIDTH + BALL_RADIUS;
+        ball.dy = (ball.y - (paddle1Y + PADDLE_HEIGHT / 2)) * 0.35;
         hitPaddle = true;
     }
-    // Player 2 paddle collision logic
     else if (ball.dx > 0 && ball.x + BALL_RADIUS > CANVAS_WIDTH - PADDLE_WIDTH && ball.x < CANVAS_WIDTH - BALL_RADIUS && ball.y > paddle2Y && ball.y < paddle2Y + PADDLE_HEIGHT) {
-        ball.dx = -ball.dx * 1.05; // Reverse horizontal velocity, increase speed
-        ball.x = CANVAS_WIDTH - PADDLE_WIDTH - BALL_RADIUS; // Reposition ball
-        ball.dy = (ball.y - (paddle2Y + PADDLE_HEIGHT / 2)) * 0.35; // Add vertical angle
+        ball.dx = -ball.dx * 1.05;
+        ball.x = CANVAS_WIDTH - PADDLE_WIDTH - BALL_RADIUS;
+        ball.dy = (ball.y - (paddle2Y + PADDLE_HEIGHT / 2)) * 0.35;
         hitPaddle = true;
     }
 
-    // Check if a player scored (ball went past a paddle)
     let scored = false;
-    if (ball.x + BALL_RADIUS < 0) {          // P2 scores
+    if (ball.x + BALL_RADIUS < 0) {
       score.player2++; scored = true; sendScoreUpdate();
-    } else if (ball.x - BALL_RADIUS > CANVAS_WIDTH) { // P1 scores
+    } else if (ball.x - BALL_RADIUS > CANVAS_WIDTH) {
       score.player1++; scored = true; sendScoreUpdate();
     }
 
-    // Handle the outcome of the physics update
     if (scored) {
       console.log(`Score: ${score.player1} - ${score.player2}`);
-      // Check if the game has been won
       if (score.player1 >= WINNING_SCORE || score.player2 >= WINNING_SCORE) {
-        winner = score.player1 >= WINNING_SCORE ? liveGame.player_1 : liveGame.player_2; // Determine winner
-        gameOver = true; // Set game over flag
+        winner = score.player1 >= WINNING_SCORE ? liveGame.player_1 : liveGame.player_2;
+        gameOver = true;
         if(winner) console.log("Game Over! Winner:", truncatePubkey(winner));
-        handleLocalGameOver(); // Trigger backend updates and game over signal
+        handleLocalGameOver();
       } else {
-        // If game not over, reset ball for the next point
         ball.x = CANVAS_WIDTH / 2;
         ball.y = CANVAS_HEIGHT / 2;
-        ball.dx = 5 * (score.player1 > score.player2 ? -1 : 1); // Serve towards the player who lost the point
-        ball.dy = 5 * (Math.random() > 0.5 ? 1 : -1); // Random vertical serve direction
-        lastBallUpdate = 0; // Reset throttle timer for immediate update
-        sendBallUpdate(); // Send the reset ball state
+        ball.dx = 5 * (score.player1 > score.player2 ? -1 : 1);
+        ball.dy = 5 * (Math.random() > 0.5 ? 1 : -1);
+        lastBallUpdate = 0;
+        sendBallUpdate();
       }
     } else if (hitPaddle) {
-      // If a paddle was hit, force a state update
-      lastBallUpdate = 0; // Reset throttle timer
+      lastBallUpdate = 0;
       sendBallUpdate();
     } else {
-      // Send regular ball update if no score/hit
       sendBallUpdate();
     }
   }
 
   // Handles actions needed when the game ends locally (P1 detects win condition)
   async function handleLocalGameOver() {
-      // Ensure necessary data is available
       if (!liveGame || !gameRecord || !gameRecord.signed_action) {
           console.error("Cannot handle game over: Missing liveGame, gameRecord, or signed_action");
           errorMsg = "Error handling game over: Missing essential game data.";
@@ -441,123 +473,184 @@
       }
       console.log("Handling local game over...");
 
-      // Extract the latest game state from the fetched record's entry data
       let latestGameState: Game | undefined;
       const recordEntry = gameRecord.entry;
       if (recordEntry && typeof recordEntry === 'object' && 'Present' in recordEntry && (recordEntry as any).Present) {
           const presentEntry = (recordEntry as { Present: Entry }).Present;
           if (presentEntry && presentEntry.entry_type === 'App' && presentEntry.entry instanceof Uint8Array) {
-              try {
-                  latestGameState = decode(presentEntry.entry) as Game;
-              } catch (e) { console.error("Decoding error in handleLocalGameOver:", e); }
+              try { latestGameState = decode(presentEntry.entry) as Game; } catch (e) { console.error("Decoding error in handleLocalGameOver:", e); }
           }
       }
-      // If state couldn't be extracted, log error and exit
       if (!latestGameState) {
           errorMsg = "Could not extract or decode latest game state in handleLocalGameOver."; console.error(errorMsg, gameRecord.entry); return;
       }
 
-      // Use the gameId prop directly as the original game hash
       const original_game_hash = gameId;
-      const previous_game_hash = gameRecord.signed_action.hashed.hash; // Hash of the latest fetched action
+      const previous_game_hash = gameRecord.signed_action.hashed.hash;
 
-      // --- Backend Updates ---
-
-      // 1. Update Game Status to 'Finished' on the DHT
       try {
-            // Construct the final game state object
             const finishedGameState: Game = {
                 player_1: latestGameState.player_1,
                 player_2: latestGameState.player_2,
                 created_at: latestGameState.created_at,
-                game_status: 'Finished', // Set status to Finished
-                player_1_paddle: Math.round(paddle1Y), // Snapshot final positions
+                game_status: 'Finished',
+                player_1_paddle: Math.round(paddle1Y),
                 player_2_paddle: Math.round(paddle2Y),
                 ball_x: Math.round(ball.x),
                 ball_y: Math.round(ball.y),
             };
-            // Prepare the payload for the update_game zome call
             const updatePayload: UpdateGameInput = {
                  original_game_hash: original_game_hash,
                  previous_game_hash: previous_game_hash,
                  updated_game: finishedGameState,
             };
             console.log("Updating game status to Finished with payload:", updatePayload);
-            // Call the backend zome function to commit the update
-            await client.callZome({ cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong", fn_name: "update_game", payload: updatePayload });
+            await client.callZome({ cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME, fn_name: "update_game", payload: updatePayload });
             console.log("Game status updated on DHT.");
        } catch (e) {
             console.error("Error updating game status:", e);
-            errorMsg = `Failed to update game status: ${(e as Error).message}`; // Set a more informative error message
-            // Ensure UI updates if errorMsg is used for display
-            return; // EXIT the function if status update fails
+            errorMsg = `Failed to update game status: ${(e as Error).message}`;
+            return;
        }
 
-       // 2. Save Final Scores for both players on the DHT
+       let score1Result: CreateScoreOutput | undefined;
        try {
            if (!liveGame || !liveGame.player_1) { throw new Error("liveGame or player_1 missing"); }
-           // Prepare payload for Player 1's score (backend sets timestamp)
-           const score1Payload: Omit<Score, 'created_at'> & { created_at?: number } = {
+           type CreateScorePayload = { game_id: ActionHash; player: AgentPubKey; player_points: number; };
+
+           const score1Payload: CreateScorePayload = {
                game_id: original_game_hash,
                player: liveGame.player_1,
                player_points: score.player1,
            };
-           await client.callZome({ cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong", fn_name: "create_score", payload: score1Payload });
-           // Prepare and send payload for Player 2's score (if P2 exists)
+           score1Result = await client.callZome({
+             cap_secret: null,
+             role_name: HOLOCHAIN_ROLE_NAME,
+             zome_name: HOLOCHAIN_ZOME_NAME,
+             fn_name: "create_score",
+             payload: score1Payload
+           });
+           if (score1Result) {
+             collectedTimeToWriteScoreMs = score1Result.write_duration_ms;
+             console.log(`Player 1 score created. Write duration: ${collectedTimeToWriteScoreMs}ms. Hash: ${encodeHashToBase64(score1Result.score_hash)}`);
+           }
+
            if (liveGame.player_2) {
-                const score2Payload: Omit<Score, 'created_at'> & { created_at?: number } = {
+                const score2Payload: CreateScorePayload = {
                    game_id: original_game_hash,
                    player: liveGame.player_2,
                    player_points: score.player2,
                 };
-                await client.callZome({ cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong", fn_name: "create_score", payload: score2Payload });
+                const score2Result: CreateScoreOutput = await client.callZome({
+                  cap_secret: null,
+                  role_name: HOLOCHAIN_ROLE_NAME,
+                  zome_name: HOLOCHAIN_ZOME_NAME,
+                  fn_name: "create_score",
+                  payload: score2Payload
+                });
+                console.log(`Player 2 score created. Write duration: ${score2Result.write_duration_ms}ms. Hash: ${encodeHashToBase64(score2Result.score_hash)}`);
+                // If averaging: collectedTimeToWriteScoreMs = Math.round((collectedTimeToWriteScoreMs + score2Result.write_duration_ms) / 2);
            }
            console.log("Scores saved.");
-       } catch (e) { console.error("Error saving scores:", e); errorMsg = "Failed to save scores."; }
+       } catch (e) {
+           console.error("Error saving scores:", e);
+           errorMsg = "Failed to save scores.";
+           return;
+       }
 
-       // 3. Send GameOver signal using the specific function
+       if (score1Result) {
+           await measureReadTime(score1Result);
+       } else {
+           console.warn("Skipping read time measurement as P1 score creation failed or didn't return result.");
+       }
+
        try {
-           // Prepare payload matching backend's GameOverPayload
-           const gameOverPayload = {
-                game_id: original_game_hash, // Use original hash
-                winner: winner, // AgentPubKey | null
+           const gameOverPayload: GameOverPayload = {
+                game_id: original_game_hash,
+                winner: winner,
                 score1: score.player1,
-                score2: score.player2
+                score2: score.player2,
+                sent_at: [Math.floor(Date.now() / 1000), (Date.now() % 1000) * 1_000_000] as Timestamp
            };
-           // Call the specific backend function to send the signal
            await client.callZome({
-               cap_secret: null, role_name: "ping_2_pong", zome_name: "ping_2_pong",
-               fn_name: "send_game_over", // *** Use the specific function ***
+               cap_secret: null, role_name: HOLOCHAIN_ROLE_NAME, zome_name: HOLOCHAIN_ZOME_NAME,
+               fn_name: "send_game_over",
                payload: gameOverPayload
             });
            console.log("GameOver signal sent.");
        } catch(e) { console.error("Error sending GameOver signal:", e); }
 
-       // 4. (Future) Implement saving game statistics here
-       // await saveStatistics();
+       await saveGameStatistics();
   }
 
-  // Handles game over triggered by receiving a GameOver signal from the opponent
+  async function measureReadTime(createdScoreOutput: CreateScoreOutput) {
+    if (!client || !createdScoreOutput || !createdScoreOutput.score_hash) {
+        console.warn("Cannot measure read time: Client or score_hash missing.", createdScoreOutput);
+        return;
+    }
+    console.log("Attempting to measure read time for score hash:", encodeHashToBase64(createdScoreOutput.score_hash));
+    try {
+        const getScoreResult: GetScoreOutput = await client.callZome({
+            cap_secret: null,
+            role_name: HOLOCHAIN_ROLE_NAME,
+            zome_name: HOLOCHAIN_ZOME_NAME,
+            fn_name: "get_score_and_measure_time",
+            payload: createdScoreOutput.score_hash,
+        });
+        collectedTimeToReadScoreMs = getScoreResult.read_duration_ms;
+        console.log("Time to read score:", collectedTimeToReadScoreMs, "ms. Score Record found:", !!getScoreResult.score_record);
+    } catch (e) {
+        console.error("Error getting score for read time measurement:", e);
+    }
+  }
+
+  async function saveGameStatistics() {
+    if (!client || !liveGame || !gameId || !liveGame.player_2) { // Ensure player_2 exists for typical game stats
+        console.warn("Cannot save game statistics: Missing client, liveGame, gameId, or player_2.", { client, liveGame, gameId });
+        return;
+    }
+    console.log("Attempting to save game statistics...");
+
+    const averageLatencyMs = RTTs.length > 0 ? RTTs.reduce((a, b) => a + b, 0) / RTTs.length : 0;
+
+    const gameStatsPayload: GameStats = {
+        game_id: gameId, // original_game_hash
+        player_1: liveGame.player_1,
+        player_2: liveGame.player_2, // Assuming player_2 is non-null for a completed game that needs stats
+        latency_ms: Math.round(averageLatencyMs),
+        time_to_write_score_ms: Math.round(collectedTimeToWriteScoreMs),
+        time_to_read_score_ms: Math.round(collectedTimeToReadScoreMs),
+        created_at: [Math.floor(Date.now() / 1000), (Date.now() % 1000) * 1_000_000] as Timestamp
+    };
+
+    try {
+        await client.callZome({
+            cap_secret: null,
+            role_name: HOLOCHAIN_ROLE_NAME,
+            zome_name: HOLOCHAIN_ZOME_NAME,
+            fn_name: "create_game_stats",
+            payload: gameStatsPayload,
+        });
+        console.log("Game statistics saved successfully.", gameStatsPayload);
+    } catch (e) {
+        console.error("Error saving game statistics:", e);
+    }
+  }
+
   function handleRemoteGameOver(remoteWinner: AgentPubKey | null) {
-      if (gameOver) return; // Prevent processing if already game over
+      if (gameOver) return;
       console.log("Handling remote game over signal...");
-      gameOver = true; // Set game over flag
-      winner = remoteWinner; // Store the winner received from the signal
-      // The UI will update in the next 'draw' call based on the 'gameOver' flag
+      gameOver = true;
+      winner = remoteWinner;
   }
 
-  // --- NEW: Function to handle exit button click ---
-  // Dispatches an event to App.svelte to handle navigation and state cleanup
-  async function requestExit() { // Make function async
+  async function requestExit() {
       console.log("PongGame: Requesting to abandon game and dispatching exit-game event");
-      
       if (!client || !gameId) {
           console.error("PongGame: Client or gameId not available to abandon game.");
-          // Still dispatch to exit UI, as backend call isn't possible
           dispatch("exit-game");
           return;
       }
-
       try {
           console.log(`PongGame: Calling abandon_game for gameId: ${encodeHashToBase64(gameId)}`);
           await client.callZome({
@@ -565,114 +658,96 @@
               role_name: HOLOCHAIN_ROLE_NAME,
               zome_name: HOLOCHAIN_ZOME_NAME,
               fn_name: "abandon_game",
-              payload: gameId, // Pass the ActionHash directly
+              payload: gameId,
           });
           console.log("PongGame: abandon_game zome call successful.");
       } catch (e) {
           console.error("PongGame: Error calling abandon_game zome function:", e);
-          // Log error, but continue to dispatch 'exit-game' to allow UI to exit
       }
-      
-      dispatch("exit-game"); // Dispatch the custom event
+      dispatch("exit-game");
   }
 
-  // Main canvas drawing loop, responsible for rendering the game state
+  function viewStats() {
+    if (!gameId) {
+        console.error("Cannot view stats: gameId is not available.");
+        return;
+    }
+    console.log("Requesting to view stats for game:", encodeHashToBase64(gameId));
+    dispatch('view-stats', { gameId });
+  }
+
   function draw() {
-    // Ensure canvas context is ready
     if (!ctx) {
-        // If context not ready, request next frame and exit
-        // Avoid infinite loop if canvas never initializes
         if (!errorMsg) animationFrameId = requestAnimationFrame(draw);
         return;
     }
 
-    // --- Drawing ---
-    // Clear canvas and draw background/midline
     ctx.fillStyle = "#FFA500"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     ctx.strokeStyle = "#000000"; ctx.lineWidth = 4; ctx.beginPath();
     ctx.setLineDash([10, 10]); ctx.moveTo(CANVAS_WIDTH / 2, 0); ctx.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT);
-    ctx.stroke(); ctx.setLineDash([]); // Reset line dash style
+    ctx.stroke(); ctx.setLineDash([]);
 
-    // Display Loading or Error message if game state isn't loaded yet
-    // Use loadingMsg first, then errorMsg if initialization failed
-    if (!liveGame && !gameOver) { // Only show loading/error if game hasn't started or finished
+    if (!liveGame && !gameOver) {
         ctx.fillStyle = "#000000"; ctx.font = "30px 'Press Start 2P', monospace"; ctx.textAlign = "center";
         ctx.fillText(errorMsg || loadingMsg || "Loading...", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-        // Keep requesting frames only if still loading (no error and not game over)
         if (!errorMsg && loadingMsg) animationFrameId = requestAnimationFrame(draw);
-        return; // Don't draw game elements if not loaded/ready
-    }
-
-    // Draw Game Elements (only if liveGame is set)
-    if (liveGame) {
-        ctx.fillStyle = "#000000";
-        ctx.fillRect(0, paddle1Y, PADDLE_WIDTH, PADDLE_HEIGHT); // Player 1 Paddle (left)
-        ctx.fillRect(CANVAS_WIDTH - PADDLE_WIDTH, paddle2Y, PADDLE_WIDTH, PADDLE_HEIGHT); // Player 2 Paddle (right)
-        ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, 2 * Math.PI); ctx.fill(); // Ball
-
-        // Draw Scores
-        ctx.font = "40px 'Press Start 2P', monospace"; ctx.textAlign = "center";
-        ctx.fillText(score.player1.toString(), CANVAS_WIDTH / 4, 60); // Player 1 Score
-        ctx.fillText(score.player2.toString(), (3 * CANVAS_WIDTH) / 4, 60); // Player 2 Score
-    }
-
-    // --- Game Over Overlay ---
-    // Display if the gameOver flag is true
-    if (gameOver) {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT); // Dim background
-        ctx.fillStyle = "#000000"; ctx.font = "50px 'Press Start 2P', monospace"; ctx.textAlign = "center";
-        ctx.fillText("GAME OVER", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 50);
-        ctx.font = "30px 'Press Start 2P', monospace";
-         // Display winner's name
-         if (winner && liveGame) {
-             const winnerName = encodeHashToBase64(winner) === encodeHashToBase64(liveGame.player_1) ? "Player 1" : "Player 2";
-             ctx.fillText(`${winnerName} Wins!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-         } else { ctx.fillText("Game Finished", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2); } // Fallback if no winner determined
-         // Display final score
-         ctx.font = "40px 'Press Start 2P', monospace";
-         ctx.fillText(`${score.player1} - ${score.player2}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
-        // Stop the animation loop once the game over screen is drawn
         return;
     }
 
-    // --- Game Logic & Next Frame Scheduling ---
-    // Update ball physics and score (only Player 1)
-    if (liveGame && liveGame.game_status === 'InProgress') { // Only run physics if game is InProgress
+    if (liveGame) {
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, paddle1Y, PADDLE_WIDTH, PADDLE_HEIGHT);
+        ctx.fillRect(CANVAS_WIDTH - PADDLE_WIDTH, paddle2Y, PADDLE_WIDTH, PADDLE_HEIGHT);
+        ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, 2 * Math.PI); ctx.fill();
+
+        ctx.font = "40px 'Press Start 2P', monospace"; ctx.textAlign = "center";
+        ctx.fillText(score.player1.toString(), CANVAS_WIDTH / 4, 60);
+        ctx.fillText(score.player2.toString(), (3 * CANVAS_WIDTH) / 4, 60);
+    }
+
+    if (gameOver) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        ctx.fillStyle = "#000000"; ctx.font = "50px 'Press Start 2P', monospace"; ctx.textAlign = "center";
+        ctx.fillText("GAME OVER", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 50);
+        ctx.font = "30px 'Press Start 2P', monospace";
+         if (winner && liveGame) {
+             const winnerName = encodeHashToBase64(winner) === encodeHashToBase64(liveGame.player_1) ? (player1Profile?.nickname || "Player 1") : (player2Profile?.nickname || "Player 2");
+             ctx.fillText(`${winnerName} Wins!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+         } else { ctx.fillText("Game Finished", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2); }
+         ctx.font = "40px 'Press Start 2P', monospace";
+         ctx.fillText(`${score.player1} - ${score.player2}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
+        return;
+    }
+
+    if (liveGame && liveGame.game_status === 'InProgress') {
         if (isPlayer1) updateBallAndScore();
-        animationFrameId = requestAnimationFrame(draw); // Continue loop
+        animationFrameId = requestAnimationFrame(draw);
     } else if (liveGame && liveGame.game_status === 'Waiting') {
-        // If somehow we are drawing but status is still Waiting, show message and wait
         ctx.fillStyle = "#888"; ctx.font = "24px Arial"; ctx.textAlign = "center";
         ctx.fillText("Waiting for game to start...", CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
-        animationFrameId = requestAnimationFrame(draw); // Continue loop while waiting
+        animationFrameId = requestAnimationFrame(draw);
     }
   }
 
-  // --- Component Lifecycle ---
   onMount(async () => {
-    client = await appClientContext.getClient(); // Initialize Holochain client
+    client = await appClientContext.getClient();
     if (canvas) {
         ctx = canvas.getContext("2d")!;
     } else {
         console.error("Canvas element not found on mount.");
         errorMsg = "Failed to initialize canvas.";
-        // Attempt to draw error even without game loop starting
         if(ctx) draw();
-        return; // Stop initialization if canvas fails
+        return;
     }
-    // Start the initialization process (which includes retries)
     initializeGame();
   });
 
   onDestroy(() => {
-    // Cleanup logic when the component is removed from the DOM
     console.log("PongGame component destroyed. Cleaning up...");
-    // Clear any pending retry timeouts
     if (retryTimeoutId) clearTimeout(retryTimeoutId);
-    // Stop animation loop and remove listeners
     cancelAnimationFrame(animationFrameId);
     window.removeEventListener("keydown", handleKeyDown);
-    if (unsubscribeFromSignals) unsubscribeFromSignals(); // Unsubscribe from Holochain signals
+    if (unsubscribeFromSignals) unsubscribeFromSignals();
   });
 
 </script>
@@ -691,6 +766,7 @@
         {#if gameOver}
             <div class="game-over-menu">
                 <button on:click={requestExit}>Back to Lobby</button>
+                <button on:click={viewStats}>View Game Stats</button> <!-- Added button -->
             </div>
         {:else if liveGame || errorMsg}
             <div class="exit-game-button">
@@ -751,6 +827,8 @@
     left: 50%;
     transform: translateX(-50%); /* Center horizontally */
     z-index: 10;
+    display: flex; /* Added for button layout */
+    gap: 10px; /* Added for spacing between buttons */
   }
   .game-over-menu button {
     font-size: 1.2rem;

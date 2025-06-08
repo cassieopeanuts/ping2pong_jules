@@ -5,6 +5,10 @@ use crate::utils::get_game_hash_by_id; // Use helper
 use ping_2_pong_integrity::game::GameStatus;
 use crate::player::get_all_player_pubkeys; // For leaderboard
 use crate::score::get_scores_for_player;   // For leaderboard
+// Import GameStats from lib.rs (coordinator's version) and IntegrityGameStats
+use crate::GameStats;
+use ping_2_pong_integrity::GameStats as IntegrityGameStats;
+
 
 #[derive(Serialize, Deserialize, Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct LeaderboardEntry {
@@ -198,4 +202,119 @@ pub fn get_leaderboard_data(_: ()) -> ExternResult<Vec<LeaderboardEntry>> {
     });
 
     Ok(leaderboard_entries)
+}
+
+#[hdk_extern]
+pub fn create_game_stats(stats: GameStats) -> ExternResult<ActionHash> {
+    debug!("[statistics.rs] create_game_stats: Called with stats: {:?}", stats);
+
+    // Validation: Ensure the game_id corresponds to an actual Game entry
+    // This also implicitly checks if the game_id is a valid ActionHash.
+    let game_action_hash = get_game_hash_by_id(&stats.game_id)?
+        .ok_or(wasm_error!(WasmErrorInner::Guest(format!("Game ID for GameStats does not exist or is not a valid ActionHash: {}", stats.game_id))))?;
+
+    // Fetch the *latest* Game record to check status and players
+    let game_record = crate::game::get_latest_game(game_action_hash.clone())? // game_action_hash is original game hash
+        .ok_or(wasm_error!(WasmErrorInner::Guest("Game record not found for GameStats creation".into())))?;
+    let game_entry = game_record
+        .entry()
+        .to_app_option::<ping_2_pong_integrity::Game>() // Integrity Game struct
+        .map_err(|e| wasm_error!(WasmErrorInner::Serialize(e)))?
+        .ok_or(wasm_error!(WasmErrorInner::Guest("Invalid Game entry format for GameStats creation".into())))?;
+
+    // Ensure the game status is Finished before recording GameStats
+    if game_entry.game_status != ping_2_pong_integrity::game::GameStatus::Finished {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "GameStats can only be recorded for 'Finished' games".into()
+        )));
+    }
+
+    // Ensure players in GameStats match players in the Game entry
+    if stats.player_1 != game_entry.player_1 || stats.player_2 != game_entry.player_2.clone().unwrap_or_default() {
+         // Assuming player_2 in GameStats will not be default if it was a 2-player game.
+         // If game_entry.player_2 is None, then stats.player_2 should also reflect that (e.g. be a default AgentPubKey or match player_1 if it's a solo game concept)
+         // For typical 2-player games, this check is crucial.
+        warn!("[statistics.rs] create_game_stats: Player mismatch. Game P1: {:?}, Stats P1: {:?}. Game P2: {:?}, Stats P2: {:?}",
+            game_entry.player_1, stats.player_1, game_entry.player_2, stats.player_2);
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Player mismatch between GameStats and the actual Game entry".into()
+        )));
+    }
+
+    // Convert coordinator GameStats to integrity GameStats
+    let integrity_game_stats = IntegrityGameStats {
+        game_id: stats.game_id, // This should be the original ActionHash of the game
+        player_1: stats.player_1,
+        player_2: stats.player_2,
+        latency_ms: stats.latency_ms,
+        time_to_write_score_ms: stats.time_to_write_score_ms,
+        time_to_read_score_ms: stats.time_to_read_score_ms,
+        created_at: stats.created_at, // This should be set by the client (frontend)
+    };
+
+    debug!("[statistics.rs] create_game_stats: Creating GameStats integrity entry: {:?}", integrity_game_stats);
+
+    let stats_entry_hash = create_entry(&EntryTypes::GameStats(integrity_game_stats.clone()))?;
+
+    debug!("[statistics.rs] create_game_stats: Successfully created GameStats entry with action hash: {:?}", stats_entry_hash);
+
+    // Create a link from the game_id (original game hash) to the GameStats entry hash
+    // The tag "game_stats" will be used to retrieve it.
+    // Note: The LinkTypes enum in integrity zome might need an update if we want a typed link,
+    // but for now, a simple string tag is fine for coordinator logic.
+    // Using a generic link type like `Any` or a specific new one if defined.
+    // For simplicity, we'll use a string tag with a general purpose link type if available,
+    // or rely on the untyped nature of string tags if LinkTypes::Any is not suitable/defined.
+    // Let's assume LinkTypes::GameToStatistics can be conceptually reused or a new specific one is added.
+    // For this implementation, we'll use a direct string tag.
+    let link_tag_bytes = "game_stats".as_bytes().to_vec();
+    create_link(
+        integrity_game_stats.game_id.clone(), // Base is the original game action hash
+        stats_entry_hash.clone(),             // Target is the GameStats entry's action hash
+        LinkTypes::GameToStatistics,          // Reusing this, but ideally a more specific LinkTypes::GameToGameStats
+        LinkTag::new(link_tag_bytes),
+    )?;
+    debug!("[statistics.rs] create_game_stats: Successfully linked GameStats entry to game: {:?} with tag 'game_stats'", integrity_game_stats.game_id);
+
+    Ok(stats_entry_hash)
+}
+
+#[hdk_extern]
+pub fn get_game_stats_for_game(game_id: ActionHash) -> ExternResult<Option<Record>> {
+    debug!("[statistics.rs] get_game_stats_for_game: Called for game_id: {:?}", game_id);
+
+    // Validate that game_id actually exists (optional, but good practice)
+    let _game_action_hash = get_game_hash_by_id(&game_id)?
+        .ok_or(wasm_error!(WasmErrorInner::Guest(format!("Game ID for get_game_stats_for_game does not exist: {}", game_id))))?;
+
+    let link_tag_bytes = "game_stats".as_bytes().to_vec();
+    let links = get_links(
+        GetLinksInputBuilder::try_new(game_id.clone(), LinkTypes::GameToStatistics)? // Reusing, see note above
+            .tag_prefix(LinkTag::new(link_tag_bytes).into()) // Filter by specific tag
+            .build(),
+    )?;
+
+    if links.is_empty() {
+        debug!("[statistics.rs] get_game_stats_for_game: No 'game_stats' link found for game_id: {:?}", game_id);
+        return Ok(None);
+    }
+
+    // Assuming there's only one GameStats entry per game linked this way
+    if links.len() > 1 {
+        warn!("[statistics.rs] get_game_stats_for_game: Multiple 'game_stats' links found for game_id: {:?}. Using the first one.", game_id);
+    }
+
+    let first_link = links.into_iter().next().unwrap(); // .unwrap() is safe due to is_empty check
+
+    let stats_entry_hash = match first_link.target.into_action_hash() {
+        Some(hash) => hash,
+        None => {
+            return Err(wasm_error!(WasmErrorInner::Guest(
+                "Target of 'game_stats' link is not an ActionHash".into()
+            )));
+        }
+    };
+
+    debug!("[statistics.rs] get_game_stats_for_game: Found GameStats entry hash: {:?} for game_id: {:?}", stats_entry_hash, game_id);
+    get(stats_entry_hash, GetOptions::default())
 }
