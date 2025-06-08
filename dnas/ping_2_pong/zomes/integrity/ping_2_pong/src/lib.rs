@@ -1,6 +1,6 @@
 // ping_2_pong/dnas/ping_2_pong/zomes/integrity/ping_2_pong/src/lib.rs
 use hdk::prelude::*;
-use holo_hash::{ActionHash, AgentPubKey};
+// use holo_hash::{ActionHash, AgentPubKey}; // Commented out as types are likely from hdk::prelude
 
 // Import entry definitions
 pub mod game;
@@ -91,7 +91,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                                             // Calls to score/stats validation are kept, but their internals will change
                                             EntryTypes::Score(score) => score_validation::validate_create_score(signed_action, score),
                                             EntryTypes::Statistics(statistics) => statistics_validation::validate_create_statistics(signed_action, statistics),
-                                            EntryTypes::GameStats(game_stats) => game_stats_validation::validate_create_game_stats(signed_action, game_stats), // Added for GameStats
+                                            EntryTypes::GameStats(game_stats) => game_stats_validation::validate_create_game_stats(signed_action.clone(), game_stats), // Cloned signed_action
                                             EntryTypes::Presence(presence) => presence_validation::validate_create_presence(signed_action, presence),
                                             EntryTypes::AnchorPath(_) => Ok(ValidateCallbackResult::Valid), // Anchor paths are structural
                                         }
