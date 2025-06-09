@@ -18,4 +18,3 @@ coordinator:
     dependencies:
     - name: ping_2_pong_integrity
     dylib: null
-lineage: []
